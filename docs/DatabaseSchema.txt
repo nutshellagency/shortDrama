@@ -1,0 +1,43 @@
+Database Schema (Production-Ready)
+Users
+users (
+  id UUID PRIMARY KEY,
+  phone VARCHAR,
+  language VARCHAR,
+  region VARCHAR,
+  coins INT,
+  created_at TIMESTAMP
+)
+
+Series
+series (
+  id UUID PRIMARY KEY,
+  title VARCHAR,
+  description TEXT,
+  language VARCHAR,
+  genre TEXT[],
+  total_episodes INT,
+  created_at TIMESTAMP
+)
+
+Episodes
+episodes (
+  id UUID PRIMARY KEY,
+  series_id UUID,
+  episode_number INT,
+  video_url TEXT,
+  thumbnail_url TEXT,
+  duration INT,
+  coin_cost INT,
+  is_locked BOOLEAN,
+  created_at TIMESTAMP
+)
+
+User Progress
+user_episode_progress (
+  user_id UUID,
+  episode_id UUID,
+  watched BOOLEAN,
+  unlocked BOOLEAN,
+  watched_at TIMESTAMP
+)

@@ -1,0 +1,156 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EpisodeLockType {
+  FREE
+  COINS
+  AD
+}
+
+enum EpisodeStatus {
+  DRAFT
+  PROCESSING
+  READY
+  PUBLISHED
+  FAILED
+}
+
+enum AiJobStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+}
+
+enum AiJobKind {
+  ENCODE_ONE
+  SPLIT_SERIES
+}
+
+enum TransactionType {
+  AD_UNLOCK
+  COIN_SPEND
+  COIN_GRANT
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  isGuest   Boolean  @default(true)
+  guestKey  String?  @unique
+  phone     String?  @unique
+  language  String?
+  region    String?
+  coins     Int      @default(0)
+
+  // POC resume playback (episode-level resume, not timestamp resume yet)
+  lastSeriesId  String?   @db.Uuid
+  lastEpisodeId String?   @db.Uuid
+  lastSeenAt    DateTime?
+  createdAt DateTime @default(now())
+
+  progress     UserEpisodeProgress[]
+  transactions Transaction[]
+}
+
+model Series {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String
+  description String   @default("")
+  language    String
+  genres      String[] @default([])
+  createdAt   DateTime @default(now())
+
+  // POC defaults for episodic splitting & monetization gating
+  freeEpisodes       Int @default(3)
+  episodeDurationSec Int @default(180) // 3 minutes
+  defaultCoinCost    Int @default(5)
+
+  episodes Episode[]
+}
+
+model Episode {
+  id            String          @id @default(uuid()) @db.Uuid
+  seriesId      String          @db.Uuid
+  episodeNumber Int
+
+  status   EpisodeStatus   @default(DRAFT)
+  lockType EpisodeLockType @default(FREE)
+  coinCost Int             @default(0)
+
+  rawKey       String?
+  videoKey     String?
+  thumbnailKey String?
+  subtitlesKey String?
+  metadataKey  String?
+
+  durationSec Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  series        Series               @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  progress      UserEpisodeProgress[]
+  transactions  Transaction[]
+  aiJobs        AiJob[]
+
+  @@unique([seriesId, episodeNumber])
+}
+
+model UserEpisodeProgress {
+  userId    String @db.Uuid
+  episodeId String @db.Uuid
+
+  watched    Boolean  @default(false)
+  unlocked   Boolean  @default(false)
+  adUnlocked Boolean  @default(false)
+  charged    Boolean  @default(false) // POC: coin deduction on completion
+  watchedAt  DateTime?
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, episodeId])
+}
+
+model AiJob {
+  id        String    @id @default(uuid()) @db.Uuid
+  episodeId String    @db.Uuid
+  kind      AiJobKind @default(ENCODE_ONE)
+  status    AiJobStatus @default(PENDING)
+  attempts  Int       @default(0)
+  error     String?
+
+  // POC progress tracking (FFmpeg progress parsing)
+  progressPct   Int       @default(0)
+  stage         String?
+  lastHeartbeat DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  startedAt DateTime?
+  finishedAt DateTime?
+
+  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+}
+
+model Transaction {
+  id        String          @id @default(uuid()) @db.Uuid
+  userId    String          @db.Uuid
+  episodeId String          @db.Uuid
+  type      TransactionType
+  amount    Int             @default(0)
+  createdAt DateTime        @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}

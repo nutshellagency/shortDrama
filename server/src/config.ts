@@ -1,0 +1,32 @@
+import { z } from "zod";
+
+const envSchema = z.object({
+  API_PORT: z.coerce.number().default(3000),
+  DATABASE_URL: z.string().min(1),
+  JWT_SECRET: z.string().min(8),
+  ADMIN_JWT_SECRET: z.string().min(8),
+  ADMIN_EMAIL: z.string().min(1),
+  ADMIN_PASSWORD: z.string().min(1),
+  WORKER_TOKEN: z.string().min(1),
+  S3_ENDPOINT: z.string().url(),
+  S3_REGION: z.string().min(1),
+  S3_ACCESS_KEY: z.string().min(1),
+  S3_SECRET_KEY: z.string().min(1),
+  S3_BUCKET_RAW: z.string().min(1),
+  S3_BUCKET_PROCESSED: z.string().min(1),
+  PUBLIC_S3_BASE_URL: z.string().url()
+});
+
+export type Env = z.infer<typeof envSchema>;
+
+export function getEnv(): Env {
+  const parsed = envSchema.safeParse(process.env);
+  if (!parsed.success) {
+    // eslint-disable-next-line no-console
+    console.error(parsed.error.format());
+    throw new Error("Invalid environment variables");
+  }
+  return parsed.data;
+}
+
+

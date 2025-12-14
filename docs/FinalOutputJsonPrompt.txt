@@ -1,0 +1,8 @@
+{
+  "episode_title": "Mohabbat Ya Intiqam",
+  "duration": "01:42",
+  "language": "ur",
+  "thumbnail": "thumb_url",
+  "video": "cdn_video_url",
+  "subtitles": "srt_url"
+}

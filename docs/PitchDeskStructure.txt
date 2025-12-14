@@ -1,0 +1,57 @@
+Pitch Deck Structure (Slide-by-Slide)
+
+You can directly convert this into PowerPoint / Keynote / Canva:
+
+Title Slide
+
+ShortDrama – Short Stories. Big Emotions.
+
+Problem
+
+Long-form OTT ≠ Mobile habits
+
+Shorts lack depth
+
+Solution
+
+Episodic vertical dramas
+
+Market Opportunity
+
+India + Pakistan
+
+Mobile-first youth
+
+Product Demo Flow
+
+Swipe → Watch → Unlock → Binge
+
+Technology
+
+AI video conversion
+
+Scalable cloud
+
+Monetization
+
+Ads
+
+Coins
+
+Subscriptions
+
+Why We Win
+
+Localization
+
+Cost control
+
+AI automation
+
+Roadmap
+
+MVP → AI → Scale
+
+Vision
+
+#1 short drama OTT in South Asia

@@ -1,0 +1,24 @@
+4. API Contracts (REST – MVP)
+Auth
+POST /auth/login
+POST /auth/verify-otp
+
+Feed
+GET /feed/home
+Response: list of series + current episode
+
+Series
+GET /series/{id}
+GET /series/{id}/episodes
+
+Episode Unlock
+POST /episode/{id}/unlock
+Body: { method: "ad" | "coins" }
+
+Watch Progress
+POST /episode/{id}/progress
+Body: { watched: true }
+
+Admin – Upload
+POST /admin/upload
+POST /admin/trigger-ai

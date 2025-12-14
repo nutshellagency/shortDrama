@@ -1,0 +1,9 @@
+Crop the video to 9:16 format using:
+- Face detection and tracking
+- Center-weighted framing
+- Dynamic horizontal panning when multiple subjects appear
+
+Rules:
+- Never cut faces
+- Prioritize speaker
+- Maintain headroom

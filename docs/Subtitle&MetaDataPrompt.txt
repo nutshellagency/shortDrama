@@ -1,0 +1,5 @@
+Transcribe spoken audio accurately in Hindi/Urdu.
+Generate:
+- Burned-in subtitles (bottom safe area)
+- Episode title (max 6 words)
+- Short hook description (1 sentence)

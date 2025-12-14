@@ -1,0 +1,42 @@
+
+
+=== PAGE 1 ===
+ShortDrama – Executive Summary & Pitch Deck
+1. Executive Summary
+ShortDrama is a mobile-first, cross-platform OTT application focused on short-form, episodic
+vertical video dramas (9:16) designed for Indian and Pakistani audiences. The platform delivers
+culturally relevant Hindi and Urdu content in bingeable episodes of 1–3 minutes, optimized for high
+engagement and monetization.
+Inspired by the success of ReelShort, ShortDrama differentiates itself through regional storytelling,
+cost-effective infrastructure, and an AI-powered content processing pipeline that converts traditional
+video into vertical, mobile-native formats.
+2. Problem
+Existing OTT platforms are long-form, data-heavy, and not optimized for mobile-first consumption
+habits in South Asia. Short-form platforms lack structured storytelling and monetization depth.
+3. Solution
+ShortDrama offers vertically formatted episodic stories with unlock mechanics, localized pricing,
+and AI-assisted content ingestion, making premium drama accessible, addictive, and scalable.
+4. Target Market
+Primary users are 16–35-year-old mobile-first viewers in India and Pakistan who consume short
+video content daily. The platform is language-first (Hindi/Urdu) and culturally aligned.
+5. Product Highlights
+- Vertical episodic dramas (1–3 min) - Swipe-based immersive viewing - Ad + coin-based unlocking
+- AI-powered vertical video conversion - Scalable, cost-efficient backend
+6. Monetization
+Revenue is generated via rewarded ads, in-app coin purchases, subscriptions (phase 2), and
+sponsored original series.
+7. Technology & Scalability
+
+
+=== PAGE 2 ===
+Built using Flutter, Node.js, PostgreSQL, and CDN-backed video delivery. AI media workers are
+decoupled for independent scaling.
+8. Vision
+To become the leading short-drama OTT platform for South Asia, enabling studios and creators to
+monetize storytelling in a mobile-native format.
+
+
+=== PAGE 3 ===
+Pitch Snapshot
+ShortDrama sits at the intersection of OTT, short video, and AI automation—unlocking a
+fast-growing content consumption pattern with a highly monetizable format.

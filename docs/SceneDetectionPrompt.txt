@@ -1,0 +1,7 @@
+Analyze the video and detect:
+- Scene boundaries
+- Speaker focus
+- Emotional peaks
+- Dialogue-heavy segments
+
+Split content into logical segments suitable for episodic storytelling.
