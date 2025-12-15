@@ -1,11 +1,15 @@
 import json
 import os
 import subprocess
+import tempfile
 import time
 from datetime import datetime
 
 import boto3
 import requests
+from dotenv import load_dotenv
+
+load_dotenv() # Load environment variables from .env file
 
 # Smart crop module for AI-powered face-tracking crop
 try:
@@ -26,6 +30,17 @@ S3_ACCESS_KEY = os.environ.get("S3_ACCESS_KEY", "minioadmin")
 S3_SECRET_KEY = os.environ.get("S3_SECRET_KEY", "minioadmin")
 S3_BUCKET_RAW = os.environ.get("S3_BUCKET_RAW", "shortdrama-raw")
 S3_BUCKET_PROCESSED = os.environ.get("S3_BUCKET_PROCESSED", "shortdrama-processed")
+
+# FFmpeg path - try system PATH first, fallback to common Windows location
+FFMPEG_PATH = "ffmpeg"  # Default: use PATH
+if os.name == 'nt' and not os.system("where ffmpeg >nul 2>&1"):  # Windows
+    # Check if ffmpeg is in PATH, if not use hardcoded path
+    try:
+        subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        if os.path.exists(r"C:\ffmpeg\bin\ffmpeg.exe"):
+            FFMPEG_PATH = r"C:\ffmpeg\bin\ffmpeg.exe"
+            print(f"[Worker] Using FFmpeg from: {FFMPEG_PATH}", flush=True)
 
 
 def s3_client():
@@ -82,6 +97,9 @@ def job_progress(job_id: str, progress_pct: int, stage: str, message: str | None
 
 
 def run(cmd: list[str]):
+    # Replace 'ffmpeg' with FFMPEG_PATH if needed
+    if cmd and cmd[0] == "ffmpeg":
+        cmd = [FFMPEG_PATH] + cmd[1:]
     p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     if p.returncode != 0:
         raise RuntimeError(f"Command failed ({p.returncode}): {' '.join(cmd)}\n{p.stdout}")
@@ -89,23 +107,51 @@ def run(cmd: list[str]):
 
 
 def ffprobe_duration_sec(path: str) -> int | None:
+    """
+    Get video duration using ffmpeg (more reliable than ffprobe on Windows).
+    """
     try:
-        out = run(
-            [
-                "ffprobe",
-                "-v",
-                "error",
-                "-show_entries",
-                "format=duration",
-                "-of",
-                "default=noprint_wrappers=1:nokey=1",
-                path,
-            ]
-        ).strip()
-        if not out:
+        print(f"[DEBUG] Running ffmpeg to detect duration: {path}", flush=True)
+        
+        # Use ffmpeg -i to get file info (outputs to stderr)
+        result = subprocess.run(
+            [FFMPEG_PATH, "-i", path],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        # Parse duration from stderr (format: Duration: HH:MM:SS.ms)
+        output = result.stderr
+        print(f"[DEBUG] ffmpeg output length: {len(output)} chars", flush=True)
+        
+        import re
+        duration_match = re.search(r'Duration:\s*(\d+):(\d+):(\d+\.\d+)', output)
+        
+        if duration_match:
+            hours = int(duration_match.group(1))
+            minutes = int(duration_match.group(2))
+            seconds = float(duration_match.group(3))
+            total_seconds = hours * 3600 + minutes * 60 + seconds
+            duration = max(1, int(total_seconds))
+            print(f"[DEBUG] Detected duration: {hours}h {minutes}m {seconds:.1f}s = {duration} seconds", flush=True)
+            return duration
+        else:
+            print(f"[DEBUG] Could not parse duration from ffmpeg output", flush=True)
+            # Try to show first 500 chars of output for debugging
+            print(f"[DEBUG] First 500 chars: {output[:500]}", flush=True)
             return None
-        return max(1, int(float(out)))
-    except Exception:
+        
+    except subprocess.TimeoutExpired:
+        print(f"[DEBUG] ffmpeg timeout after 30s", flush=True)
+        return None
+    except FileNotFoundError:
+        print(f"[DEBUG] ffmpeg not found in PATH", flush=True)
+        return None
+    except Exception as e:
+        print(f"[DEBUG] ffmpeg exception: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -290,15 +336,59 @@ def download_from_url(url: str, dest_path: str):
     
     if is_supported_site:
         print(f"[Worker] Downloading with yt-dlp: {url}", flush=True)
-        # yt-dlp command to download best video+audio and merge to mp4
+        
+        # Create a unique download folder to isolate this download
+        download_dir = os.path.dirname(dest_path)
+        download_subdir = os.path.join(download_dir, "ytdl_temp")
+        os.makedirs(download_subdir, exist_ok=True)
+        
+        # Clear any previous files in the temp folder
+        for f in os.listdir(download_subdir):
+            try:
+                os.remove(os.path.join(download_subdir, f))
+            except:
+                pass
+        
+        # yt-dlp output template - just use 'video' as the base name
+        output_template = os.path.join(download_subdir, "video.%(ext)s")
+        
+        # Use a format that gives a single pre-muxed file to avoid FFmpeg merge issues
+        # 'best[ext=mp4]' gets the best single MP4 stream (video+audio in one file)
+        # Fallback to 'best' if mp4 not available
         cmd = [
             "yt-dlp",
-            "-o", dest_path,
-            "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+            "-o", output_template,
+            "-f", "best[ext=mp4]/best",  # Single file, no merge needed
             "--no-playlist",
+            "--no-warnings",
             url
         ]
+        
+        print(f"[Worker] Running: {' '.join(cmd)}", flush=True)
         run(cmd)
+        
+        # Find the downloaded file - scan for any video file in the temp folder
+        video_extensions = [".mp4", ".mkv", ".webm", ".avi", ".mov"]
+        downloaded_file = None
+        
+        print(f"[Worker] Scanning {download_subdir} for video files...", flush=True)
+        for f in os.listdir(download_subdir):
+            print(f"[Worker]   Found: {f}", flush=True)
+            if any(f.lower().endswith(ext) for ext in video_extensions):
+                downloaded_file = os.path.join(download_subdir, f)
+                break
+        
+        if downloaded_file and os.path.exists(downloaded_file):
+            file_size = os.path.getsize(downloaded_file)
+            print(f"[Worker] Moving {downloaded_file} -> {dest_path} ({file_size} bytes)", flush=True)
+            # Use shutil.move for cross-drive compatibility on Windows
+            import shutil
+            shutil.move(downloaded_file, dest_path)
+            print(f"[Worker] Downloaded successfully: {dest_path}", flush=True)
+        else:
+            # List what's in the directory for debugging
+            all_files = os.listdir(download_subdir) if os.path.exists(download_subdir) else []
+            raise RuntimeError(f"yt-dlp download completed but no video file found. Files in {download_subdir}: {all_files}")
     else:
         print(f"[Worker] Downloading with requests: {url}", flush=True)
         with requests.get(url, stream=True) as r:
@@ -314,9 +404,9 @@ def split_series(job: dict):
     seg = int(job.get("seriesEpisodeDurationSec") or 180)
 
     stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    workdir = f"/tmp/job_{job_id}"
+    workdir = os.path.join(tempfile.gettempdir(), f"job_{job_id}")
     os.makedirs(workdir, exist_ok=True)
-    input_path = os.path.join(workdir, "input")
+    input_path = os.path.join(workdir, "input.mp4")  # Use .mp4 extension for ffprobe
 
     s3 = s3_client()
 
@@ -328,9 +418,29 @@ def split_series(job: dict):
         s3.download_file(S3_BUCKET_RAW, raw_key, input_path)
     job_progress(job_id, 1, "downloaded")
 
+    # Debug: Check file exists and its size
+    if os.path.exists(input_path):
+        file_size = os.path.getsize(input_path)
+        print(f"[DEBUG] Input file exists: {input_path} ({file_size} bytes)", flush=True)
+    else:
+        print(f"[DEBUG] ERROR: Input file NOT found at {input_path}", flush=True)
+        # List files in workdir
+        print(f"[DEBUG] Files in {workdir}: {os.listdir(workdir)}", flush=True)
+        raise RuntimeError(f"Downloaded file not found at {input_path}")
+
     total_sec = ffprobe_duration_sec(input_path) or 1
+    print(f"[DEBUG] ffprobe_duration_sec result: {total_sec} seconds", flush=True)
+    
     seg = max(30, seg)
     count = max(1, int((total_sec + seg - 1) // seg))
+    
+    print(f"[DEBUG] Segment length: {seg}s, Total duration: {total_sec}s, Episode count: {count}", flush=True)
+    
+    # Respect max episodes limit from job payload
+    max_eps = int(job.get("seriesMaxEpisodes") or 50)
+    if count > max_eps:
+        print(f"Limiting count {count} to max {max_eps}", flush=True)
+        count = max_eps
 
     segments_payload = []
     for i in range(count):
@@ -347,9 +457,17 @@ def split_series(job: dict):
         out_dir = os.path.join(workdir, f"out_{ep_no:03d}")
         job_progress(job_id, max(1, int((i / count) * 100)), f"split_encoding_ep_{ep_no}/{count}")
 
-        out_mp4, out_jpg, out_srt, out_json, duration_sec = process_video(
-            job_id, input_path, out_dir, start_sec=start, duration_sec=dur, report_progress=False
-        )
+        try:
+            print(f"[DEBUG] Processing episode {ep_no}: start={start}s, duration={dur}s", flush=True)
+            out_mp4, out_jpg, out_srt, out_json, duration_sec = process_video(
+                job_id, input_path, out_dir, start_sec=start, duration_sec=dur, report_progress=False
+            )
+            print(f"[DEBUG] Episode {ep_no} processed successfully", flush=True)
+        except Exception as e:
+            print(f"[ERROR] Failed to process episode {ep_no}: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+            raise
 
         base_key = f"processed/{job_id}_{stamp}_ep{ep_no:03d}"
         video_key = f"{base_key}.mp4"
@@ -418,9 +536,9 @@ def main():
             continue
 
         stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        workdir = f"/tmp/job_{job_id}"
+        workdir = os.path.join(tempfile.gettempdir(), f"job_{job_id}")
         os.makedirs(workdir, exist_ok=True)
-        input_path = os.path.join(workdir, "input")
+        input_path = os.path.join(workdir, "input.mp4")  # Use .mp4 extension for ffprobe
 
         try:
             # Download raw video

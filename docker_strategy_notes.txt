@@ -1,0 +1,48 @@
+# Multi-stage Dockerfile for Server (Node.js) and Worker (Python)
+# We can use a single file with targets or separate files.
+# Given the structure, we'll create optimized standalone files for simplicity in Compose.
+
+# -----------------
+# STAGE 1: SERVER
+# -----------------
+FROM node:20-alpine AS server-builder
+WORKDIR /app/server
+
+# Install dependencies
+COPY server/package*.json ./
+COPY server/prisma ./prisma/
+RUN npm install
+
+# Copy source
+COPY server/ .
+
+# Build (if necessary, tsx compiles on fly but good to run check)
+# RUN npm run build 
+
+# -----------------
+# STAGE 2: WORKER
+# -----------------
+FROM python:3.11-slim AS worker-runtime
+WORKDIR /app/worker
+
+# Install system dependencies (FFmpeg, MediaPipe requirements)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python deps
+COPY worker/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source
+COPY worker/ .
+# Create content dirs
+RUN mkdir -p /app/content/raw /app/content/processed
+
+# -----------------
+# FINAL IMAGES are defined in docker-compose by target context
+# For simple VPS deployment, we will define the contexts in compose.
+# But providing a concrete server Dockerfile in server/Dockerfile is best practice.

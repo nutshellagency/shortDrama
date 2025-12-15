@@ -1,49 +1,114 @@
-# ShortDrama (Local POC)
+# ShortDrama - Short-Form Video Platform
 
 ## Project Overview
 
-This repository contains a local-first proof of concept for the ShortDrama platform. It is a video processing and delivery platform that allows admins to upload raw videos, which are then processed by an AI worker to produce vertical videos, thumbnails, and subtitles. The processed videos are then made available to viewers through a web interface.
+ShortDrama is a video processing and delivery platform for short-form drama content. Admins upload raw videos which are processed by an AI worker to produce vertical videos, thumbnails, and subtitles. The processed videos are then made available to viewers through a web interface with a freemium monetization model (ads + coins).
 
-The project is composed of four main services orchestrated with Docker Compose:
+## Architecture
 
-*   **API Server:** A Node.js application built with Fastify and TypeScript. It provides a RESTful API for the admin dashboard and the viewer application. It uses Prisma as an ORM to interact with the PostgreSQL database.
-*   **AI Worker:** A Python script that uses FFmpeg and MediaPipe to process videos. It continuously polls the API server for new jobs, downloads raw videos from S3, processes them, and uploads the results back to S3.
-*   **PostgreSQL:** The main database for the platform, used to store information about users, series, episodes, and user progress.
-*   **MinIO:** An S3-compatible object storage service used to store raw and processed videos.
+The project consists of three main components:
 
-## Building and Running
+* **API Server** (`/server`): Node.js application built with Fastify and TypeScript. Provides RESTful API for admin dashboard and viewer app. Uses Prisma ORM with PostgreSQL.
 
-### Prerequisites
+* **AI Worker** (`/worker`): Python script using FFmpeg and MediaPipe. Polls the API for jobs, downloads raw videos, processes them (vertical crop, thumbnails, subtitles), and uploads results to storage.
 
-*   Docker Desktop
+* **Viewer App** (`/viewer`): Next.js application deployable to Vercel. Connects to the API server for content delivery.
 
-### Quick Start (local)
+## Storage
 
-1.  **Environment Variables:** Copy the contents of `config/env.example` and export them in your shell, or configure them in your Docker environment.
-2.  **Start the services:**
-    ```bash
-    docker compose up --build
-    ```
-3.  **Access the applications:**
-    *   **Viewer:** `http://localhost:3000/app`
-    *   **Admin:** `http://localhost:3000/admin`
-    *   **MinIO Console:** `http://localhost:9001` (user/pass: `minioadmin` / `minioadmin` by default)
+**We use Supabase Storage** (S3-compatible) for all video content:
 
-### Development Conventions
+| Bucket | Access | Purpose |
+|--------|--------|---------|
+| `shortdrama-raw` | Private | Original uploaded videos |
+| `shortdrama-processed` | Public | Processed videos, thumbnails, subtitles |
 
-*   **Server:** The server is a TypeScript application. To run it in development mode with hot-reloading, use the following command:
-    ```bash
-    cd server
-    npm run dev
-    ```
-*   **Worker:** The worker is a Python script.
-*   **Database:** The database schema is managed with Prisma. To push schema changes to the database, use the following command:
-    ```bash
-    cd server
-    npm run db:push
-    ```
-    To open the Prisma Studio to view and edit data in the database, use the following command:
-    ```bash
-    cd server
-    npm run prisma:studio
-    ```
+### Public URL Format
+```
+{SUPABASE_URL}/storage/v1/object/public/shortdrama-processed/{key}
+```
+
+## Environment Variables
+
+### Required for Server & Worker
+
+```bash
+# Database
+DATABASE_URL=postgresql://user:pass@host:5432/shortdrama
+
+# JWT Secrets
+JWT_SECRET=your-jwt-secret
+ADMIN_JWT_SECRET=your-admin-jwt-secret
+
+# Admin Credentials
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=your-admin-password
+
+# Worker Authentication
+WORKER_TOKEN=your-worker-token
+
+# Supabase Storage (S3-compatible)
+SUPABASE_URL=https://your-project.supabase.co
+S3_ENDPOINT=https://your-project.supabase.co/storage/v1/s3
+S3_REGION=us-east-1
+S3_ACCESS_KEY=your-supabase-service-key
+S3_SECRET_KEY=your-supabase-service-key
+S3_BUCKET_RAW=shortdrama-raw
+S3_BUCKET_PROCESSED=shortdrama-processed
+PUBLIC_S3_BASE_URL=https://your-project.supabase.co/storage/v1/object/public
+```
+
+### Required for Viewer App
+
+```bash
+NEXT_PUBLIC_API_URL=https://your-api-server.com
+```
+
+## Development
+
+### Server
+```bash
+cd server
+npm install
+npm run dev          # Start with hot-reload
+npm run db:push      # Push Prisma schema to database
+npm run prisma:studio # Open Prisma Studio for data inspection
+```
+
+### Worker
+```bash
+cd worker
+pip install -r requirements.txt
+python main.py       # Start processing jobs
+```
+
+### Viewer
+```bash
+cd viewer
+npm install
+npm run dev          # Start Next.js dev server
+```
+
+## Monetization Model
+
+- **Free Episodes**: First N episodes per series are free (configurable)
+- **Locked Episodes**: Require either:
+  - **Watch Ad**: User watches a video ad → earns coins + unlocks episode
+  - **Use Coins**: User spends coins to unlock episode
+
+### Ad System
+- Primary: Google AdSense video ads (when available)
+- Fallback: Local mock ad served from `/content/raw/MockAd.mp4`
+
+## Content Processing Flow
+
+1. Admin uploads raw video to Supabase Storage
+2. Creates series and triggers auto-split job
+3. Worker claims job, downloads raw video
+4. Splits into episodes (default 3 minutes each)
+5. For each segment:
+   - AI crop to vertical (9:16) with face tracking
+   - Generate thumbnail
+   - Generate placeholder subtitles
+   - Upload to processed bucket
+6. Episodes are published and available to viewers

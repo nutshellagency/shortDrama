@@ -20,9 +20,10 @@ export function publicObjectUrl(bucket: string, key: string) {
   if (key.startsWith("public/")) {
     return `/${key}`;
   }
-  // POC: Serving MinIO content via local static server relative path
-  // This works because we mount ./content:/data in MinIO and serve ../content via fastify-static
-  return `/content/${bucket}/${encodeURIComponent(key).replace(/%2F/g, "/")}`;
+  // Generate Supabase Storage public URL
+  // Format: {PUBLIC_S3_BASE_URL}/{bucket}/{key}
+  const env = getEnv();
+  return `${env.PUBLIC_S3_BASE_URL}/${bucket}/${encodeURIComponent(key).replace(/%2F/g, "/")}`;
 }
 
 export async function presignPutUrl(params: { bucket: string; key: string; contentType?: string }) {

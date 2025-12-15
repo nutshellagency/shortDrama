@@ -2,20 +2,23 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
+# Install system dependencies if any (ffmpeg needed for thumbnail generation if server does simple processing)
+RUN apk add --no-cache ffmpeg python3 make g++
+
+# Install dependencies
+COPY package*.json ./
+COPY prisma ./prisma/
+
 RUN npm install
 
-COPY prisma ./prisma
-COPY tsconfig.json ./tsconfig.json
-COPY src ./src
+# Copy source
+COPY . .
 
-EXPOSE 3000
-
-# POC: sync schema to DB on startup, then run server
-ARG DATABASE_URL=postgresql://user:pass@localhost:5432/db?schema=public
-ENV DATABASE_URL=${DATABASE_URL}
+# Generate Prisma Client
 RUN npx prisma generate
 
-CMD ["sh", "-c", "npx prisma db push && npm run start"]
+# Expose port
+EXPOSE 3000
 
-
+# Start command
+CMD ["npm", "run", "start"]

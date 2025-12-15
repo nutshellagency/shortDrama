@@ -68,7 +68,7 @@ app.register(jwt, { secret: env.JWT_SECRET });
 app.register(multipart, { limits: { fileSize: 2 * 1024 * 1024 * 1024 } }); // 2GB
 
 app.register(fastifyStatic, {
-  root: path.join(__dirname, '..', 'content'),
+  root: path.join(__dirname, '..', '..', 'content'),
   prefix: '/content/',
   decorateReply: false
 });
@@ -109,6 +109,69 @@ function ensureWorker(req: any, reply: any, done: any) {
 }
 
 app.get("/health", async () => ({ ok: true }));
+
+// Debug endpoint (temporary): show episode data and generated URLs
+app.get("/debug/episodes", async () => {
+  const episodes = await prisma.episode.findMany({
+    where: { status: EpisodeStatus.PUBLISHED },
+    include: { series: true },
+    take: 10
+  });
+  return {
+    publicS3BaseUrl: env.PUBLIC_S3_BASE_URL,
+    bucket: env.S3_BUCKET_PROCESSED,
+    episodes: episodes.map(ep => ({
+      id: ep.id,
+      seriesTitle: ep.series.title,
+      episodeNumber: ep.episodeNumber,
+      status: ep.status,
+      lockType: ep.lockType,
+      rawKey: ep.rawKey,
+      videoKey: ep.videoKey,
+      thumbnailKey: ep.thumbnailKey,
+      generatedVideoUrl: ep.videoKey ? publicObjectUrl(env.S3_BUCKET_PROCESSED, ep.videoKey) : null,
+      generatedThumbnailUrl: ep.thumbnailKey ? publicObjectUrl(env.S3_BUCKET_PROCESSED, ep.thumbnailKey) : null
+    }))
+  };
+});
+
+// Debug endpoint (temporary): show feed response
+app.get("/debug/feed", async () => {
+  // Create a test user view of the feed (simulate guest)
+  const testUser = await prisma.user.findFirst({ orderBy: { createdAt: "desc" } });
+  if (!testUser) return { error: "no_users" };
+
+  const episodes = await prisma.episode.findMany({
+    where: { status: EpisodeStatus.PUBLISHED },
+    include: { series: true }
+  });
+  const progress = await prisma.userEpisodeProgress.findMany({ where: { userId: testUser.id } });
+  const progressMap = new Map(progress.map((p) => [p.episodeId, p]));
+
+  const items = episodes
+    .sort((a, b) => (a.seriesId === b.seriesId ? a.episodeNumber - b.episodeNumber : a.seriesId.localeCompare(b.seriesId)))
+    .map((ep) => {
+      const p = progressMap.get(ep.id);
+      const unlocked = ep.lockType === EpisodeLockType.FREE ? true : p?.unlocked ?? false;
+      return {
+        series: { id: ep.series.id, title: ep.series.title },
+        episode: {
+          id: ep.id,
+          episodeNumber: ep.episodeNumber,
+          lockType: ep.lockType,
+          videoKey: ep.videoKey,
+          videoUrl: unlocked && ep.videoKey ? publicObjectUrl(env.S3_BUCKET_PROCESSED, ep.videoKey) : null,
+          thumbnailUrl: ep.thumbnailKey ? publicObjectUrl(env.S3_BUCKET_PROCESSED, ep.thumbnailKey) : null,
+        },
+        viewer: {
+          unlocked,
+          userId: testUser.id
+        }
+      };
+    });
+
+  return { items };
+});
 
 app.get("/", async (_req, reply) => reply.redirect("/app"));
 app.get("/admin", async (_req, reply) => reply.type("text/html").send(adminHtml()));
@@ -297,6 +360,30 @@ app.get("/feed/home", { preHandler: ensureAuth }, async (req: any) => {
   return { items };
 });
 
+app.get("/feed/series", { preHandler: ensureAuth }, async (req: any) => {
+  const series = await prisma.series.findMany({
+    include: {
+      episodes: {
+        where: { episodeNumber: 1 },
+        select: {
+          thumbnailKey: true
+        }
+      }
+    }
+  });
+
+  return {
+    items: series.map(s => ({
+      id: s.id,
+      title: s.title,
+      language: s.language,
+      genres: s.genres,
+      episodeCount: 0, // aggregate if needed, or query separate
+      coverUrl: s.episodes[0]?.thumbnailKey ? publicObjectUrl(env.S3_BUCKET_PROCESSED, s.episodes[0].thumbnailKey) : null
+    }))
+  };
+});
+
 app.get("/series/:id", { preHandler: ensureAuth }, async (req: any) => {
   const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
   const series = await prisma.series.findUnique({ where: { id } });
@@ -323,45 +410,45 @@ app.post("/episode/:id/unlock", { preHandler: ensureAuth }, async (req: any, rep
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
   if (body.method === "ad") {
-    const progress = await prisma.userEpisodeProgress.findUnique({
-      where: { userId_episodeId: { userId, episodeId: id } },
+    // ALWAYS reward the user for watching an ad
+    const rewardAmount = 5; // Configurable?
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      // 1. Give coins
+      const u = await tx.user.update({ where: { id: userId }, data: { coins: { increment: rewardAmount } } });
+
+      // 2. Record transaction
+      await tx.transaction.create({ data: { userId, episodeId: id, type: TransactionType.COIN_GRANT, amount: rewardAmount } });
+
+      // 3. Ensure episode is unlocked (if not already)
+      await tx.userEpisodeProgress.upsert({
+        where: { userId_episodeId: { userId, episodeId: id } },
+        update: { unlocked: true, adUnlocked: true },
+        create: { userId, episodeId: id, unlocked: true, adUnlocked: true, watched: false },
+      });
+
+      return u;
     });
 
-    if (progress?.adUnlocked) {
-      // Already ad-unlocked, so reward with coins instead.
-      const updatedUser = await prisma.$transaction(async (tx) => {
-        const u = await tx.user.update({ where: { id: userId }, data: { coins: { increment: 10 } } });
-        await tx.transaction.create({ data: { userId, episodeId: id, type: TransactionType.COIN_GRANT, amount: 10 } });
-        return u;
-      });
-      return { unlocked: true, coins: updatedUser.coins, granted: 10 };
-    } else {
-      // First time ad-unlock for this episode.
-      await prisma.$transaction(async (tx) => {
-        await tx.userEpisodeProgress.upsert({
-          where: { userId_episodeId: { userId, episodeId: id } },
-          update: { unlocked: true, adUnlocked: true },
-          create: { userId, episodeId: id, unlocked: true, adUnlocked: true, watched: false },
-        });
-        await tx.transaction.create({ data: { userId, episodeId: id, type: TransactionType.AD_UNLOCK, amount: 0 } });
-      });
-      return { unlocked: true };
-    }
+    return { unlocked: true, coins: updatedUser.coins, granted: rewardAmount };
   } else if (body.method === "coins") {
     // POC: allow coin unlock for any locked episode (AD or COINS), using coinCost or series default.
     const cost = episode.coinCost > 0 ? episode.coinCost : episode.series.defaultCoinCost;
     if (cost > 0 && user.coins < cost) return reply.code(400).send({ error: "insufficient_coins" });
 
-    await prisma.$transaction(async (tx) => {
-      if (cost > 0) await tx.user.update({ where: { id: userId }, data: { coins: { decrement: cost } } });
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      let u = user;
+      if (cost > 0) {
+        u = await tx.user.update({ where: { id: userId }, data: { coins: { decrement: cost } } });
+      }
       await tx.userEpisodeProgress.upsert({
         where: { userId_episodeId: { userId, episodeId: id } },
         update: { unlocked: true },
         create: { userId, episodeId: id, unlocked: true, watched: false }
       });
       if (cost > 0) await tx.transaction.create({ data: { userId, episodeId: id, type: TransactionType.COIN_SPEND, amount: cost } });
+      return u;
     });
-    return { unlocked: true };
+    return { unlocked: true, coins: updatedUser.coins, spent: cost };
   }
 
   return reply.code(400).send({ error: "invalid_method" });
@@ -457,7 +544,8 @@ app.post("/admin/series", { preHandler: ensureAdmin }, async (req: any) => {
       description: z.string().default(""),
       freeEpisodes: z.number().int().min(0).max(20).default(3),
       episodeDurationSec: z.number().int().min(30).max(600).default(180),
-      defaultCoinCost: z.number().int().min(0).max(999).default(5)
+      defaultCoinCost: z.number().int().min(0).max(999).default(5),
+      maxEpisodes: z.number().int().min(1).max(100).default(50)
     })
     .parse(req.body ?? {});
   const series = await prisma.series.create({
@@ -474,6 +562,84 @@ app.post("/admin/series", { preHandler: ensureAdmin }, async (req: any) => {
   return series;
 });
 
+// List all series with episode counts
+app.get("/admin/series", { preHandler: ensureAdmin }, async () => {
+  const series = await prisma.series.findMany({
+    orderBy: { createdAt: "desc" },
+    include: {
+      _count: { select: { episodes: true } },
+      episodes: { where: { status: EpisodeStatus.PUBLISHED }, select: { id: true } }
+    }
+  });
+  return {
+    series: series.map(s => ({
+      id: s.id,
+      title: s.title,
+      language: s.language,
+      genres: s.genres,
+      description: s.description,
+      freeEpisodes: s.freeEpisodes,
+      episodeDurationSec: s.episodeDurationSec,
+      defaultCoinCost: s.defaultCoinCost,
+      maxEpisodes: (s as any).maxEpisodes ?? 50,
+      totalEpisodes: s._count.episodes,
+      publishedEpisodes: s.episodes.length,
+      createdAt: s.createdAt
+    }))
+  };
+});
+
+// Update series metadata
+app.put("/admin/series/:id", { preHandler: ensureAdmin }, async (req: any, reply) => {
+  const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+  const body = z
+    .object({
+      title: z.string().min(1).optional(),
+      language: z.string().min(1).optional(),
+      genres: z.array(z.string()).optional(),
+      description: z.string().optional(),
+      freeEpisodes: z.number().int().min(0).max(20).optional(),
+      episodeDurationSec: z.number().int().min(30).max(600).optional(),
+      defaultCoinCost: z.number().int().min(0).max(999).optional(),
+      maxEpisodes: z.number().int().min(1).max(100).optional()
+    })
+    .parse(req.body ?? {});
+
+  const existing = await prisma.series.findUnique({ where: { id } });
+  if (!existing) return reply.code(404).send({ error: "series_not_found" });
+
+  const updated = await prisma.series.update({
+    where: { id },
+    data: body
+  });
+  return updated;
+});
+
+// Delete series and all its episodes
+app.delete("/admin/series/:id", { preHandler: ensureAdmin }, async (req: any, reply) => {
+  const { id } = z.object({ id: z.string().uuid() }).parse(req.params);
+
+  const existing = await prisma.series.findUnique({ where: { id } });
+  if (!existing) return reply.code(404).send({ error: "series_not_found" });
+
+  // Delete related records first (cascade)
+  const episodes = await prisma.episode.findMany({ where: { seriesId: id }, select: { id: true } });
+  const episodeIds = episodes.map(e => e.id);
+
+  // Delete AI jobs for these episodes
+  await prisma.aiJob.deleteMany({ where: { episodeId: { in: episodeIds } } });
+  // Delete user progress for these episodes
+  await prisma.userEpisodeProgress.deleteMany({ where: { episodeId: { in: episodeIds } } });
+  // Delete transactions for these episodes
+  await prisma.transaction.deleteMany({ where: { episodeId: { in: episodeIds } } });
+  // Delete episodes
+  await prisma.episode.deleteMany({ where: { seriesId: id } });
+  // Finally delete series
+  await prisma.series.delete({ where: { id } });
+
+  return { ok: true, deleted: { seriesId: id, episodeCount: episodeIds.length } };
+});
+
 // Auto-generate episodes by splitting a long raw video into 3-minute (default) episodes.
 // Worker will create/publish episodes 1..N based on duration.
 app.post("/admin/series/:id/auto-split", { preHandler: ensureAdmin }, async (req: any, reply) => {
@@ -483,13 +649,15 @@ app.post("/admin/series/:id/auto-split", { preHandler: ensureAdmin }, async (req
       rawKey: z.string().min(1),
       episodeDurationSec: z.number().int().min(30).max(600).default(180),
       freeEpisodes: z.number().int().min(0).max(20).default(3),
-      defaultCoinCost: z.number().int().min(0).max(999).default(5)
+      defaultCoinCost: z.number().int().min(0).max(999).default(5),
+      maxEpisodes: z.number().int().min(1).max(100).default(50)
     })
     .parse(req.body ?? {});
 
   const rawKey = body.rawKey.trim();
-  if (rawKey === "-" || rawKey.length < 3 || !rawKey.startsWith("raw/")) {
-    return reply.code(400).send({ error: "invalid_raw_key", hint: "Upload first; rawKey must start with raw/..." });
+  const isUrl = rawKey.startsWith("http://") || rawKey.startsWith("https://");
+  if (!isUrl && (rawKey === "-" || rawKey.length < 3 || !rawKey.startsWith("raw/"))) {
+    return reply.code(400).send({ error: "invalid_raw_key", hint: "Upload first; rawKey must start with raw/ or be a valid URL" });
   }
 
   await prisma.series.update({
@@ -497,7 +665,8 @@ app.post("/admin/series/:id/auto-split", { preHandler: ensureAdmin }, async (req
     data: {
       freeEpisodes: body.freeEpisodes,
       episodeDurationSec: body.episodeDurationSec,
-      defaultCoinCost: body.defaultCoinCost
+      defaultCoinCost: body.defaultCoinCost,
+      maxEpisodes: body.maxEpisodes
     }
   });
 
@@ -565,48 +734,50 @@ app.post("/admin/series/:id/auto-split", { preHandler: ensureAdmin }, async (req
 });
 
 app.post("/admin/import-from-url", { preHandler: ensureAdmin }, async (req: any, reply) => {
-    const body = z.object({
-        url: z.string().url(),
-        seriesTitle: z.string().min(1),
-        language: z.string().min(1),
-        episodeDurationSec: z.number().int().min(30).max(600).default(180),
-        freeEpisodes: z.number().int().min(0).max(20).default(3),
-        defaultCoinCost: z.number().int().min(0).max(999).default(5)
-    }).parse(req.body ?? {});
+  const body = z.object({
+    url: z.string().url(),
+    seriesTitle: z.string().min(1),
+    language: z.string().min(1),
+    episodeDurationSec: z.number().int().min(30).max(600).default(180),
+    freeEpisodes: z.number().int().min(0).max(20).default(3),
+    defaultCoinCost: z.number().int().min(0).max(999).default(5),
+    maxEpisodes: z.number().int().min(1).max(100).default(50)
+  }).parse(req.body ?? {});
 
-    const series = await prisma.series.create({
-        data: {
-            title: body.seriesTitle,
-            language: body.language,
-            episodeDurationSec: body.episodeDurationSec,
-            freeEpisodes: body.freeEpisodes,
-            defaultCoinCost: body.defaultCoinCost
-        }
-    });
+  const series = await prisma.series.create({
+    data: {
+      title: body.seriesTitle,
+      language: body.language,
+      episodeDurationSec: body.episodeDurationSec,
+      freeEpisodes: body.freeEpisodes,
+      defaultCoinCost: body.defaultCoinCost,
+      maxEpisodes: body.maxEpisodes
+    }
+  });
 
-    const episode = await prisma.episode.create({
-        data: {
-            seriesId: series.id,
-            episodeNumber: 1,
-            rawKey: body.url, // Using the URL as the rawKey for the worker to download
-            lockType: EpisodeLockType.FREE as any,
-            coinCost: 0,
-            status: EpisodeStatus.PROCESSING
-        }
-    });
+  const episode = await prisma.episode.create({
+    data: {
+      seriesId: series.id,
+      episodeNumber: 1,
+      rawKey: body.url, // Using the URL as the rawKey for the worker to download
+      lockType: EpisodeLockType.FREE as any,
+      coinCost: 0,
+      status: EpisodeStatus.PROCESSING
+    }
+  });
 
-    const job = await prisma.aiJob.create({
-        data: {
-            episodeId: episode.id,
-            kind: AiJobKind.SPLIT_SERIES as any,
-            status: AiJobStatus.PENDING,
-            attempts: 0,
-            progressPct: 0,
-            stage: "queued_import"
-        }
-    });
+  const job = await prisma.aiJob.create({
+    data: {
+      episodeId: episode.id,
+      kind: AiJobKind.SPLIT_SERIES as any,
+      status: AiJobStatus.PENDING,
+      attempts: 0,
+      progressPct: 0,
+      stage: "queued_import"
+    }
+  });
 
-    return { ok: true, jobId: job.id, episodeId: episode.id, seriesId: series.id };
+  return { ok: true, jobId: job.id, episodeId: episode.id, seriesId: series.id };
 });
 
 app.post("/admin/upload", { preHandler: ensureAdmin }, async (req: any) => {
@@ -847,16 +1018,16 @@ app.get("/admin/episodes/:id/status", { preHandler: ensureAdmin }, async (req: a
     series: { id: episode.series.id, title: episode.series.title },
     job: job
       ? {
-          id: job.id,
-          status: job.status,
-          attempts: job.attempts,
-          error: job.error,
-          startedAt: job.startedAt,
-          finishedAt: job.finishedAt,
-          progressPct: job.progressPct,
-          stage: job.stage,
-          lastHeartbeat: job.lastHeartbeat
-        }
+        id: job.id,
+        status: job.status,
+        attempts: job.attempts,
+        error: job.error,
+        startedAt: job.startedAt,
+        finishedAt: job.finishedAt,
+        progressPct: job.progressPct,
+        stage: job.stage,
+        lastHeartbeat: job.lastHeartbeat
+      }
       : null
   };
 });
@@ -895,7 +1066,8 @@ app.post("/worker/jobs/claim", { preHandler: ensureWorker }, async (req: any) =>
 
     const episode = await prisma.episode.findUnique({ where: { id: job.episodeId }, include: { series: true } });
     const rawKey = episode?.rawKey ?? null;
-    const rawKeyValid = Boolean(rawKey && rawKey !== "-" && rawKey.startsWith("raw/"));
+    const isUrl = rawKey?.startsWith("http://") || rawKey?.startsWith("https://");
+    const rawKeyValid = Boolean(rawKey && rawKey !== "-" && (isUrl || rawKey.startsWith("raw/")));
     if (!rawKeyValid) {
       await prisma.aiJob.update({
         where: { id: job.id },
@@ -907,7 +1079,7 @@ app.post("/worker/jobs/claim", { preHandler: ensureWorker }, async (req: any) =>
         }
       });
       if (episode) {
-        await prisma.episode.update({ where: { id: episode.id }, data: { status: EpisodeStatus.FAILED } }).catch(() => {});
+        await prisma.episode.update({ where: { id: episode.id }, data: { status: EpisodeStatus.FAILED } }).catch(() => { });
       }
       app.log.warn({ reqId: req.id, jobId: job.id, rawKey }, "worker_claim:skipping_invalid_raw");
       continue;
@@ -935,6 +1107,7 @@ app.post("/worker/jobs/claim", { preHandler: ensureWorker }, async (req: any) =>
         seriesFreeEpisodes: episode!.series.freeEpisodes,
         seriesEpisodeDurationSec: episode!.series.episodeDurationSec,
         seriesDefaultCoinCost: episode!.series.defaultCoinCost,
+        seriesMaxEpisodes: (episode!.series as any).maxEpisodes ?? 50,
         rawBucket: env.S3_BUCKET_RAW,
         rawKey: rawKey
       }

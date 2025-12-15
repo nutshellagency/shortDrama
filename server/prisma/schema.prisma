@@ -70,6 +70,7 @@ model Series {
   freeEpisodes       Int @default(3)
   episodeDurationSec Int @default(180) // 3 minutes
   defaultCoinCost    Int @default(5)
+  maxEpisodes        Int @default(50)
 
   episodes Episode[]
 }

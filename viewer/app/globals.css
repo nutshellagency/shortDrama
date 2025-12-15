@@ -44,16 +44,20 @@
     -webkit-tap-highlight-color: transparent;
 }
 
+html,
+body {
+    margin: 0;
+    padding: 0;
+}
+
 body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     font-family: var(--font-family);
-    margin: 0;
-    padding: 0;
     font-size: var(--font-size-body);
     overflow-x: hidden;
     padding-bottom: var(--bottom-nav-height);
-    /* Space for fixed nav */
+    min-height: 100vh;
 }
 
 /* Utilities */
@@ -75,8 +79,6 @@ body {
     color: var(--text-secondary);
 }
 
-/* --- Components --- */
-
 /* Buttons */
 .btn {
     border: none;
@@ -85,6 +87,7 @@ body {
     font-weight: 600;
     cursor: pointer;
     transition: transform 0.1s;
+    font-size: var(--font-size-body);
 }
 
 .btn:active {
@@ -101,6 +104,8 @@ body {
     color: white;
     padding: 8px;
     font-size: 20px;
+    border: none;
+    cursor: pointer;
 }
 
 /* Header */
@@ -126,6 +131,7 @@ body {
     background: var(--accent-gradient);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
 /* Coins Widget */
@@ -173,6 +179,7 @@ body {
     white-space: nowrap;
     font-size: 13px;
     color: var(--text-secondary);
+    cursor: pointer;
 }
 
 .filter-chip.active {
@@ -187,7 +194,6 @@ body {
     position: relative;
     width: 100%;
     aspect-ratio: 9/12;
-    /* Vertical poster style */
     background-size: cover;
     background-position: center;
     margin-bottom: var(--space-xl);
@@ -273,10 +279,10 @@ body {
 
 .series-card {
     flex: 0 0 110px;
-    /* Fixed width */
     display: flex;
     flex-direction: column;
     gap: 6px;
+    cursor: pointer;
 }
 
 .poster-wrapper {
@@ -292,6 +298,16 @@ body {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+.lock-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 4px;
+    padding: 2px;
+    font-size: 10px;
 }
 
 .series-title {
@@ -323,11 +339,10 @@ body {
     overflow: hidden;
 }
 
-video {
+.player-video {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    /* Fill screen like reels */
 }
 
 /* Rewarded Ad Mock Overlay */
@@ -352,6 +367,115 @@ video {
     background: rgba(0, 0, 0, 0.5);
     padding: 5px 10px;
     border-radius: 12px;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.ad-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: black;
+}
+
+.ad-ui {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    left: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+}
+
+.ad-label {
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.ad-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    pointer-events: auto;
+}
+
+.ad-skip-btn {
+    background: rgba(255, 255, 255, 0.9);
+    color: black;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.ad-skip-btn:hover {
+    background: white;
+}
+
+.ad-skip-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.ad-cancel-btn {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ad-cancel-btn:hover {
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.ad-processing {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 16px;
+}
+
+.unlock-error {
+    background: rgba(255, 100, 100, 0.2);
+    border: 1px solid rgba(255, 100, 100, 0.5);
+    color: #ff6464;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    text-align: center;
+    font-size: 13px;
+}
+
+.unlock-balance {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-top: 8px;
 }
 
 /* Player UI Overlays */
@@ -367,7 +491,6 @@ video {
     justify-content: space-between;
     padding: 20px;
     pointer-events: none;
-    /* Let clicks pass to video for toggle */
     transition: opacity 0.3s;
 }
 
@@ -402,6 +525,7 @@ video {
     align-items: center;
     justify-content: center;
     backdrop-filter: blur(4px);
+    cursor: pointer;
 }
 
 .controls-bottom {
@@ -439,6 +563,7 @@ video {
     height: 100%;
     background: var(--accent-primary);
     width: 0%;
+    transition: width 0.1s linear;
 }
 
 .action-row {
@@ -453,9 +578,12 @@ video {
     padding: 8px 16px;
     border-radius: 20px;
     font-size: 13px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 6px;
+    color: white;
+    border: none;
+    cursor: pointer;
 }
 
 /* Unlock Overlay */
@@ -500,6 +628,9 @@ video {
     align-items: center;
     justify-content: space-between;
     font-weight: 600;
+    cursor: pointer;
+    border: none;
+    font-size: var(--font-size-body);
 }
 
 .unlock-btn.ad {
@@ -510,6 +641,18 @@ video {
 .unlock-btn.coins {
     background: rgba(255, 255, 255, 0.1);
     color: var(--text-primary);
+}
+
+.unlock-btn-cancel {
+    width: 100%;
+    margin-top: 10px;
+    background: transparent;
+    border: 1px solid #333;
+    color: var(--text-primary);
+    padding: 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: var(--font-size-body);
 }
 
 /* Bottom Navigation */
@@ -539,6 +682,8 @@ video {
     border: none;
     padding: 4px;
     width: 100%;
+    cursor: pointer;
+    text-decoration: none;
 }
 
 .nav-item.active {
@@ -567,7 +712,6 @@ video {
 
 .explore-grid .series-card {
     flex: unset;
-    /* Override horizontal rail style */
     display: flex;
     flex-direction: column;
 }
@@ -581,43 +725,30 @@ video {
     font-size: 13px;
     margin-top: 6px;
     white-space: normal;
-    /* Allow wrapping */
     line-height: 1.2;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
-/* Ad Video specific */
-.ad-video {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    background: black;
+/* Screen containers */
+.screen {
+    min-height: 100vh;
 }
 
-.ad-ui {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    left: 20px;
+/* Loading state */
+.loading-container {
+    height: 400px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    pointer-events: none;
+    justify-content: center;
+    opacity: 0.5;
 }
 
-.ad-label {
-    background: rgba(0, 0, 0, 0.5);
-    color: white;
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-}
-
-.ad-timer {
-    position: static;
-    /* Override previous rule if any */
-    font-weight: bold;
-    font-size: 14px;
+/* Empty state */
+.empty-state {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-secondary);
 }

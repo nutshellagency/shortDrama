@@ -44,10 +44,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (idx === 0) { // Home
                     show(getEl('home-screen'));
                     hide(getEl('player-screen'));
+                    hide(getEl('explore-screen'));
                     hide(getEl('unlock-modal')); // Ensure modal is closed
                     // Stop video if playing
                     const v = getEl('v');
                     if (v) v.pause();
+                } else if (idx === 1) { // Explore
+                    show(getEl('explore-screen'));
+                    hide(getEl('home-screen'));
+                    hide(getEl('player-screen'));
+                    hide(getEl('unlock-modal'));
+                    const v = getEl('v');
+                    if (v) v.pause();
+                    loadSeasons();
                 } else {
                     // Placeholder for other tabs
                     // alert('Tab ' + (idx + 1) + ' coming soon!');
@@ -266,25 +275,130 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    async function doUnlock(item, method) {
-        const btnId = method === 'ad' ? 'btn-unlock-ad' : 'btn-unlock-coins';
-        const originalText = getEl(btnId).innerHTML;
-        getEl(btnId).textContent = 'Unlocking...';
+    async function loadSeasons() {
+        const res = await api('/feed/series', { headers: authHeaders() });
+        if (!res.ok) return;
 
-        const res = await api(`/episode/${item.episode.id}/unlock`, {
-            method: 'POST',
-            headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-            body: JSON.stringify({ method })
+        const container = getEl('explore-content');
+        container.innerHTML = '';
+
+        if (!res.data.items || res.data.items.length === 0) {
+            container.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">No series found.</div>';
+            return;
+        }
+
+        res.data.items.forEach(s => {
+            const card = document.createElement('div');
+            card.className = 'series-card vertical'; // Reuse or add css
+            // quick inline style for grid layout
+            card.style.width = '100%';
+
+            card.innerHTML = `
+                <div class="poster-wrapper" style="aspect-ratio: 3/4; border-radius:8px; overflow:hidden;">
+                    <img src="${s.coverUrl || ''}" style="width:100%; height:100%; object-fit:cover;" loading="lazy" />
+                </div>
+                <h3 class="series-title" style="margin-top:8px;">${s.title}</h3>
+                <span class="series-meta">${s.genres.join(', ') || 'Drama'}</span>
+            `;
+            // For now, clicking a series just goes to home (or we could start playing likely)
+            // MVP: Just alert or go home
+            card.onclick = () => {
+                // Ideally filter home or open series detail
+                alert('Series detail coming soon: ' + s.title);
+            };
+            container.appendChild(card);
         });
+    }
 
-        if (res.ok) {
-            // Refresh feed to get new URLs/status
-            await loadFeed();
-            // Re-trigger play (now it should be unlocked)
-            playEpisode(item.series.id, item.episode.id);
+    async function doUnlock(item, method) {
+        if (method === 'ad') {
+            // 1. Show Ad Overlay
+            const overlay = getEl('ad-overlay');
+            const adVideo = getEl('ad-video');
+            const timer = getEl('ad-timer');
+
+            show(overlay);
+            adVideo.src = '/content/RAW/MockAd.mp4';
+            adVideo.currentTime = 0;
+
+            // disable main player controls if needed, but overlay covers it.
+
+            // 2. Play Ad
+            try {
+                await adVideo.play();
+            } catch (e) {
+                console.error('Ad playback failed:', e);
+                alert('Ad failed to play. Please try again or use coins to unlock.');
+                hide(overlay);
+                // Do NOT unlock if ad fails - user must retry or use coins
+                return;
+            }
+
+            // Timer update
+            const interval = setInterval(() => {
+                const rem = Math.ceil(adVideo.duration - adVideo.currentTime);
+                timer.textContent = rem > 0 ? rem : '';
+            }, 500);
+
+            // 3. On End -> Call API
+            adVideo.onended = () => {
+                clearInterval(interval);
+                finishUnlock();
+            };
+
+            async function finishUnlock() {
+                // Show unlocking state in overlay instead of hiding it immediately
+                const adLabel = overlay.querySelector('.ad-label');
+                if (adLabel) adLabel.textContent = 'Ad complete. Unlocking episode...';
+
+                // Call API
+                const res = await api(`/episode/${item.episode.id}/unlock`, {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ method: 'ad' })
+                });
+
+                if (res.ok) {
+                    // Update coins locally if returned
+                    if (res.data.coins !== undefined) {
+                        currentUser.coins = res.data.coins;
+                        updateCoinDisplay();
+                    }
+                    // Refresh feed to get new URLs/status
+                    await loadFeed();
+
+                    // Re-trigger play
+                    playEpisode(item.series.id, item.episode.id);
+
+                    // Now hide overlay
+                    hide(overlay);
+                    if (adLabel) adLabel.textContent = 'Ad · Reward in progress'; // Reset label
+                } else {
+                    alert('Unlock failed: ' + (res.data?.error || 'Unknown error'));
+                    hide(overlay); // Hide on error so user can retry
+                }
+            }
+
         } else {
-            alert('Unlock failed: ' + (res.data?.error || 'Unknown error'));
-            getEl(btnId).innerHTML = originalText;
+            // Coins method
+            const btnId = 'btn-unlock-coins';
+            const originalText = getEl(btnId).innerHTML;
+            getEl(btnId).textContent = 'Unlocking...';
+
+            const res = await api(`/episode/${item.episode.id}/unlock`, {
+                method: 'POST',
+                headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ method: 'coins' })
+            });
+
+            if (res.ok) {
+                // Deduct coins locally (or refresh)
+                await loadFeed(); // This will update coins from server state
+                playEpisode(item.series.id, item.episode.id);
+            } else {
+                alert('Unlock failed: ' + (res.data?.error || 'Unknown error'));
+                getEl(btnId).innerHTML = originalText;
+            }
         }
     }
 

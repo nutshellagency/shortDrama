@@ -1,0 +1,69 @@
+services:
+  # 1. API Server
+  server:
+    build: ./server
+    container_name: shortdrama-api
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/shortdrama
+      - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_JWT_SECRET=${ADMIN_JWT_SECRET}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - WORKER_TOKEN=${WORKER_TOKEN}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_REGION=${S3_REGION}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - S3_BUCKET_RAW=${S3_BUCKET_RAW}
+      - S3_BUCKET_PROCESSED=${S3_BUCKET_PROCESSED}
+      - PUBLIC_S3_BASE_URL=${PUBLIC_S3_BASE_URL}
+    depends_on:
+      - db
+    volumes:
+      - ./content:/app/content
+
+  # 2. AI Worker
+  worker:
+    build: ./worker
+    container_name: shortdrama-worker
+    restart: always
+    environment:
+      - API_URL=http://server:3000
+      - WORKER_TOKEN=${WORKER_TOKEN}
+      - S3_ENDPOINT=${S3_ENDPOINT}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY}
+      - S3_SECRET_KEY=${S3_SECRET_KEY}
+      - S3_BUCKET_RAW=${S3_BUCKET_RAW}
+      - S3_BUCKET_PROCESSED=${S3_BUCKET_PROCESSED}
+    depends_on:
+      - server
+    volumes:
+      - ./content:/content
+
+  # 3. Database
+  db:
+    image: postgres:15-alpine
+    container_name: shortdrama-db
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=shortdrama
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # 4. Nginx Reverse Proxy (Port 80)
+  nginx:
+    image: nginx:alpine
+    container_name: shortdrama-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - server
+
+volumes:
+  postgres_data:
