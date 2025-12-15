@@ -296,8 +296,35 @@ def process_video(
     if not duration_sec:
         raise RuntimeError("encoded segment has no duration (empty output)")
 
-    # Thumbnail: use the first decoded frame to avoid seek issues on short segments.
-    run(["ffmpeg", "-y", "-i", out_mp4, "-frames:v", "1", "-q:v", "2", out_jpg])
+    # Smart thumbnail generation: analyze multiple frames and select the best one
+    try:
+        from smart_thumbnail import generate_smart_thumbnail
+        
+        print(f"[Worker] Job {job_id}: Generating smart thumbnail...", flush=True)
+        thumbnail_result = generate_smart_thumbnail(
+            video_path=out_mp4,
+            output_dir=out_dir,
+            target_width=1080,
+            target_height=1920,
+            job_id=job_id,
+            progress_callback=None  # Could enable if needed
+        )
+        
+        if "error" in thumbnail_result:
+            print(f"[Worker] Job {job_id}: Smart thumbnail failed, using fallback", flush=True)
+            # Fallback to simple middle-frame extraction
+            run(["ffmpeg", "-y", "-i", out_mp4, "-vf", "select='eq(n\\,100)'", "-frames:v", "1", "-q:v", "2", out_jpg])
+        else:
+            # Smart thumbnail succeeded - file already saved as thumb.jpg
+            print(f"[Worker] Job {job_id}: Smart thumbnail generated successfully", flush=True)
+            print(f"[Worker] Job {job_id}:   Strategy: {thumbnail_result.get('strategy')}", flush=True)
+            print(f"[Worker] Job {job_id}:   Score: {thumbnail_result['metadata'].get('best_score', 0):.1f}/100", flush=True)
+            
+    except Exception as e:
+        print(f"[Worker] Job {job_id}: Smart thumbnail error ({e}), using fallback", flush=True)
+        # Fallback: extract frame from middle of video instead of first frame
+        # This is still better than first frame which is often black
+        run(["ffmpeg", "-y", "-i", out_mp4, "-vf", "select='eq(n\\,100)'", "-frames:v", "1", "-q:v", "2", out_jpg])
     mm = (duration_sec or 1) // 60
     ss = (duration_sec or 1) % 60
 

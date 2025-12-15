@@ -16,8 +16,11 @@ const AD_CONFIG = {
     adsenseEnabled: false, // Set to true when AdSense is configured
     adsenseAdUnitId: '', // Your AdSense video ad unit ID
 
-    // Fallback: Local mock ad
-    fallbackAdUrl: '/content/raw/MockAd.mp4',
+    // Fallback: Mock ad from Supabase Storage
+    // Use Supabase public URL if available, otherwise fallback to local
+    fallbackAdUrl: process.env.NEXT_PUBLIC_SUPABASE_URL
+        ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/shortdrama-processed/ads/MockAd.mp4`
+        : '/ads/mock-ad.mp4', // Local development fallback
 
     // Reward amount for watching an ad
     rewardAmount: 5,
@@ -69,9 +72,9 @@ export default function UnlockModal({
             console.log('[Ad] AdSense configured but implementation pending, using fallback');
         }
 
-        // Build the ad URL - use API server URL for the mock ad
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-        adVideo.src = `${apiUrl}${adUrl}`;
+        // fallbackAdUrl is now a fully qualified URL (Supabase public URL)
+        // No need to prepend API server URL
+        adVideo.src = adUrl;
 
         try {
             // Wait for metadata to load to get duration
@@ -180,6 +183,7 @@ export default function UnlockModal({
                     className="ad-video"
                     playsInline
                     muted={false}
+                    preload="metadata"
                 />
                 <div className="ad-ui">
                     <div className="ad-header">
