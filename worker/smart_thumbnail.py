@@ -240,13 +240,11 @@ def generate_smart_thumbnail(
     skip_seconds = min(2.0, duration * 0.1)  # Skip first 2s or 10% of video
     effective_duration = duration - skip_seconds
     
+    # Generate only 3 candidates (user requirement)
     timestamps = [
-        skip_seconds + 1.0,  # 3 seconds in (or 1s after skip)
-        skip_seconds + effective_duration * 0.1,   # 10% mark
-        skip_seconds + effective_duration * 0.25,  # 25% mark
+        skip_seconds + effective_duration * 0.15,  # ~15% mark (early)
         skip_seconds + effective_duration * 0.5,   # 50% mark (middle)
-        skip_seconds + effective_duration * 0.75,  # 75% mark
-        skip_seconds + effective_duration * 0.9,   # 90% mark
+        skip_seconds + effective_duration * 0.85,  # 85% mark (late)
     ]
     
     # Ensure all timestamps are within bounds
