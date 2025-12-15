@@ -29,9 +29,30 @@ export default function ExplorePage() {
         }
     }, [isLoading, token, loadSeries]);
 
-    const handleSeriesClick = (seriesItem: SeriesListItem) => {
-        // In a full app, this would navigate to a series detail page
-        alert(`Series detail coming soon: ${seriesItem.title}`);
+    const handleSeriesClick = async (seriesItem: SeriesListItem) => {
+        // Navigate to first episode of the series
+        if (!token) return;
+
+        try {
+            // Fetch episodes for this series to get the first episode ID
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/feed/episodes?seriesId=${seriesItem.id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.items && data.items.length > 0) {
+                    // Navigate to first episode
+                    const firstEpisode = data.items[0];
+                    window.location.href = `/player/${firstEpisode.id}?seriesId=${seriesItem.id}`;
+                } else {
+                    alert('No episodes available for this series');
+                }
+            }
+        } catch (error) {
+            console.error('Error loading series:', error);
+            alert('Failed to load series. Please try again.');
+        }
     };
 
     if (isLoading || isLoadingSeries) {
