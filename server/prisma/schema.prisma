@@ -75,37 +75,6 @@ model Series {
   episodes Episode[]
 }
 
-model EpisodeThumbnail {
-  id        String   @id @default(uuid()) @db.Uuid
-  episodeId String   @db.Uuid
-  
-  // Thumbnail file info
-  thumbnailKey  String   // S3 key
-  thumbnailUrl  String   // Full public URL
-  
-  // Candidate info
-  isSelected    Boolean  @default(false)
-  isAiSelected  Boolean  @default(false)  // Was this the AI's choice?
-  candidateIndex Int     // 0-2 (three candidates)
-  
-  // Scoring metadata
-  brightnessScore Float?
-  sharpnessScore  Float?
-  facesScore      Float?
-  totalScore      Float?
-  numFaces        Int?
-  timestamp       Float?  // Timestamp in video (seconds)
-  
-  // Review metadata
-  reviewedAt      DateTime?
-  
-  createdAt DateTime @default(now())
-  
-  episode Episode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
-  
-  @@index([episodeId, isSelected])
-}
-
 model Episode {
   id            String          @id @default(uuid()) @db.Uuid
   seriesId      String          @db.Uuid
@@ -122,19 +91,14 @@ model Episode {
   metadataKey  String?
 
   durationSec Int?
-  
-  // Thumbnail review status
-  thumbnailReviewStatus   String?   // 'pending' | 'reviewed' | 'auto_confirmed'
-  thumbnailReviewDeadline DateTime? // Auto-confirm after 10 minutes
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  series              Series                @relation(fields: [seriesId], references: [id], onDelete: Cascade)
-  progress            UserEpisodeProgress[]
-  transactions        Transaction[]
-  aiJobs              AiJob[]
-  thumbnailCandidates EpisodeThumbnail[]
+  series       Series                @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  progress     UserEpisodeProgress[]
+  transactions Transaction[]
+  aiJobs       AiJob[]
 
   @@unique([seriesId, episodeNumber])
 }
