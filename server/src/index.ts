@@ -53,7 +53,7 @@ import { pipeline } from "stream/promises";
 
 const env = getEnv();
 
-const app = Fastify({ logger: true });
+export const app = Fastify({ logger: true });
 
 declare module "@fastify/jwt" {
   interface FastifyJWT {
@@ -1261,9 +1261,11 @@ const start = async () => {
   await app.listen({ port: env.API_PORT, host: "0.0.0.0" });
 };
 
-start().catch((err) => {
-  app.log.error(err);
-  process.exit(1);
-});
+if (require.main === module) {
+  start().catch((err) => {
+    app.log.error(err);
+    process.exit(1);
+  });
+}
 
 
