@@ -38,10 +38,10 @@ if %errorLevel% neq 0 (
 )
 
 :: 2. Start Services
-start "Minio Storage" /min cmd /k ".\minio.exe server .\minio_data --console-address :9001"
-start "API Server (Port 4000)" cmd /k "cd server && set API_PORT=4000&& npm run dev"
-start "App Viewer (Port 3000)" cmd /k "cd viewer && set PORT=3000&& npm run dev"
-start "AI Worker" cmd /k "cd worker && set API_BASE_URL=http://localhost:4000&& python main.py"
+start "Minio Storage" /min /D "%~dp0" cmd /k ".\minio.exe server .\minio_data --console-address :9001"
+start "API Server (Port 4000)" /D "%~dp0server" cmd /k "set API_PORT=4000&& echo Pushing DB Schema... && npm run db:push && npm run dev"
+start "App Viewer (Port 3000)" /D "%~dp0viewer" cmd /k "set PORT=3000&& npm run dev"
+start "AI Worker" /D "%~dp0worker" cmd /k "set API_BASE_URL=http://localhost:4000&& python main.py"
 
 echo.
 echo ========================================================
