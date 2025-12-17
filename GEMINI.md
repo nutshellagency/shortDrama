@@ -12,7 +12,18 @@ The project consists of three main components:
 
 * **AI Worker** (`/worker`): Python script using FFmpeg and MediaPipe. Polls the API for jobs, downloads raw videos, processes them (vertical crop, thumbnails, subtitles), and uploads results to storage.
 
-* **Viewer App** (`/viewer`): Next.js application deployable to Vercel. Connects to the API server for content delivery.
+* **Viewer App** (`/viewer`): Next.js application deployable to Vercel. Connects to the API server for content delivery. Built using an **Atomic Design System** with a premium dark theme.
+
+## Frontend Architecture (Viewer)
+
+The viewer application follows the Atomic Design methodology:
+- **Atoms**: Basic building blocks (Buttons, Icons, Typography).
+- **Molecules**: Simple groups of UI elements (SeriesCard, EpisodeCard).
+- **Organisms**: Complex UI components (HeroBanner, Header, BottomNav).
+- **Templates/Pages**: Page-level layouts.
+
+**Tech Stack**: Next.js, React, Vanilla CSS (Premium Theme), TypeScript.
+**Design Tokens**: Managed in `globals.css` (variables for colors, spacing, typography).
 
 ## Storage
 

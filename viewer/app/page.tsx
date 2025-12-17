@@ -1,14 +1,16 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { getFeed } from '@/lib/api';
 import type { FeedItem } from '@/lib/types';
-import Header from '@/components/Header';
-import BottomNav from '@/components/BottomNav';
-import HeroBanner from '@/components/HeroBanner';
-import SeriesRail from '@/components/SeriesRail';
+import Header from '@/components/organisms/Header';
+import BottomNav from '@/components/organisms/BottomNav';
+import HeroBanner from '@/components/organisms/HeroBanner';
+import SeriesRail from '@/components/organisms/SeriesRail';
 
 export default function HomePage() {
     const router = useRouter();

@@ -5,8 +5,8 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { getFeed, unlockEpisode } from '@/lib/api';
 import type { FeedItem } from '@/lib/types';
-import VideoPlayer from '@/components/VideoPlayer';
-import UnlockModal from '@/components/UnlockModal';
+import VideoPlayer from '@/components/organisms/VideoPlayer';
+import UnlockModal from '@/components/organisms/UnlockModal';
 
 export default function PlayerPage() {
     const params = useParams();

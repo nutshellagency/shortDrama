@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { getSeriesList } from '@/lib/api';
 import type { SeriesListItem } from '@/lib/types';
-import Header from '@/components/Header';
-import BottomNav from '@/components/BottomNav';
-import SeriesCard from '@/components/SeriesCard';
+import Header from '@/components/organisms/Header';
+import BottomNav from '@/components/organisms/BottomNav';
+import SeriesCard from '@/components/molecules/SeriesCard';
 
 export default function ExplorePage() {
     const { token, isLoading } = useAuth();
@@ -29,25 +30,30 @@ export default function ExplorePage() {
         }
     }, [isLoading, token, loadSeries]);
 
+    const router = useRouter(); // Need to ensure useRouter is imported
+
     const handleSeriesClick = async (seriesItem: SeriesListItem) => {
         // Navigate to first episode of the series
         if (!token) return;
 
         try {
             // Fetch episodes for this series to get the first episode ID
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/feed/episodes?seriesId=${seriesItem.id}`, {
+            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/series/${seriesItem.id}/episodes`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
             if (res.ok) {
                 const data = await res.json();
-                if (data.items && data.items.length > 0) {
+                if (data.episodes && data.episodes.length > 0) {
                     // Navigate to first episode
-                    const firstEpisode = data.items[0];
-                    window.location.href = `/player/${firstEpisode.id}?seriesId=${seriesItem.id}`;
+                    const firstEpisode = data.episodes[0];
+                    router.push(`/player/${firstEpisode.id}?seriesId=${seriesItem.id}`);
                 } else {
                     alert('No episodes available for this series');
                 }
+            } else {
+                console.error('Failed to fetch episodes', res.status);
+                alert('Failed to load series. Please try again.');
             }
         } catch (error) {
             console.error('Error loading series:', error);

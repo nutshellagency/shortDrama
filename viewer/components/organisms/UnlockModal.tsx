@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { CoinsIcon } from '@/components/atoms/Icons';
 
 interface UnlockModalProps {
     episodeCost: number;
@@ -19,7 +20,7 @@ const AD_CONFIG = {
     // Fallback: Mock ad from Supabase Storage
     // Use Supabase public URL if available, otherwise fallback to local
     fallbackAdUrl: process.env.NEXT_PUBLIC_SUPABASE_URL
-        ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/shortdrama-processed/ads/MockAd.mp4`
+        ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/shortdrama-processed/ads/mockad.mp4`
         : '/ads/mock-ad.mp4', // Local development fallback
 
     // Reward amount for watching an ad
@@ -234,7 +235,7 @@ export default function UnlockModal({
                 onClick={handleWatchAd}
                 disabled={isProcessing}
             >
-                <span>Watch Ad (+{AD_CONFIG.rewardAmount} 🟡)</span>
+                <span>Watch Ad (+{AD_CONFIG.rewardAmount} <CoinsIcon size={14} className="inline mb-0.5" />)</span>
                 <span>Free</span>
             </button>
 
@@ -244,10 +245,12 @@ export default function UnlockModal({
                 disabled={isProcessing || userCoins < episodeCost}
             >
                 <span>Use Coins</span>
-                <span>{episodeCost} 🟡</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {episodeCost} <CoinsIcon size={14} className="text-[var(--coin-gold)]" />
+                </span>
             </button>
 
-            <div className="unlock-balance">Your balance: {userCoins} 🟡</div>
+            <div className="unlock-balance">Your balance: {userCoins} <span style={{ color: 'var(--coin-gold)' }}>●</span></div>
 
             <button
                 className="unlock-btn-cancel"
