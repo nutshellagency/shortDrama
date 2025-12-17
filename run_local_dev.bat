@@ -17,7 +17,7 @@ if %errorLevel% neq 0 (
 
 echo.
 echo ========================================================
-echo  Preparing Services (Port 3000=Viewer, 3001=Server)
+echo  Preparing Services (Port 3000=Viewer, 4000=Server)
 echo ========================================================
 
 :: 1. Minio Setup
@@ -39,15 +39,15 @@ if %errorLevel% neq 0 (
 
 :: 2. Start Services
 start "Minio Storage" /min cmd /k ".\minio.exe server .\minio_data --console-address :9001"
-start "API Server (Port 3001)" cmd /k "cd server && set API_PORT=3001&& npm run dev"
-start "App Viewer (Port 3000)" cmd /k "cd viewer && npm run dev"
-start "AI Worker" cmd /k "cd worker && set API_BASE_URL=http://localhost:3001&& python main.py"
+start "API Server (Port 4000)" cmd /k "cd server && set API_PORT=4000&& npm run dev"
+start "App Viewer (Port 3000)" cmd /k "cd viewer && set PORT=3000&& npm run dev"
+start "AI Worker" cmd /k "cd worker && set API_BASE_URL=http://localhost:4000&& python main.py"
 
 echo.
 echo ========================================================
 echo  Ready!
 echo     - Viewer: http://localhost:3000
-echo     - Server: http://localhost:3001
+echo     - Server: http://localhost:4000
 echo     - Minio:  http://localhost:9001
 echo ========================================================
 echo.
