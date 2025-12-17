@@ -1,7 +1,7 @@
 'use client';
 
 import type { FeedItem } from '@/lib/types';
-import EpisodeCard from './EpisodeCard';
+import EpisodeCard from '../molecules/EpisodeCard';
 
 interface SeriesRailProps {
     title: string;

@@ -83,6 +83,10 @@ def calculate_brightness_score(frame: np.ndarray) -> float:
     # Calculate mean brightness (0-255 normalized to 0-1)
     brightness = np.mean(gray) / 255.0
     
+    # Penalize extremely dark frames (black screens) heavily
+    if brightness < 0.05:
+        return 0.0
+
     # Optimal range is 0.3-0.7
     if 0.3 <= brightness <= 0.7:
         # Perfect range: full 40 points

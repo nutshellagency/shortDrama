@@ -48,8 +48,10 @@ This PRD locks the **POC scope** first (guest mode + mock monetization), then de
 
 ### 6) UX requirements (POC)
 
-#### Mobile (Flutter)
-- **Home feed**: full-screen vertical swipe; minimal chrome.
+#### Mobile/Web Viewer (Next.js)
+- **Visual Style**: Premium Dark Theme (inspired by ReelShort). Use deep blacks, glassmorphism, and vibrant accents (`#ff4757`).
+- **Atomic Design**: All components must be built using Atomic Design principles.
+- **Home feed**: full-screen vertical swipe; minimal chrome; premium hero banner.
 - **Player**: play/pause, subtitle toggle, series/episode title overlay, auto-advance.
 - **Locked episode overlay**:
   - CTA1: “Watch Ad to Unlock” (mock in POC; AdMob in MVP)

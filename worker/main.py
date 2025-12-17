@@ -312,8 +312,9 @@ def process_video(
         
         if "error" in thumbnail_result:
             print(f"[Worker] Job {job_id}: Smart thumbnail failed, using fallback", flush=True)
-            # Fallback to simple middle-frame extraction
-            run(["ffmpeg", "-y", "-i", out_mp4, "-vf", "select='eq(n\\,100)'", "-frames:v", "1", "-q:v", "2", out_jpg])
+            # Fallback to simple middle-frame extraction (using time)
+            midpoint = (duration_sec or 1) / 2
+            run(["ffmpeg", "-y", "-ss", str(midpoint), "-i", out_mp4, "-frames:v", "1", "-q:v", "2", out_jpg])
         else:
             # Smart thumbnail succeeded - file already saved as thumb.jpg
             print(f"[Worker] Job {job_id}: Smart thumbnail generated successfully", flush=True)
@@ -323,8 +324,8 @@ def process_video(
     except Exception as e:
         print(f"[Worker] Job {job_id}: Smart thumbnail error ({e}), using fallback", flush=True)
         # Fallback: extract frame from middle of video instead of first frame
-        # This is still better than first frame which is often black
-        run(["ffmpeg", "-y", "-i", out_mp4, "-vf", "select='eq(n\\,100)'", "-frames:v", "1", "-q:v", "2", out_jpg])
+        midpoint = (duration_sec or 1) / 2
+        run(["ffmpeg", "-y", "-ss", str(midpoint), "-i", out_mp4, "-frames:v", "1", "-q:v", "2", out_jpg])
     mm = (duration_sec or 1) // 60
     ss = (duration_sec or 1) % 60
 

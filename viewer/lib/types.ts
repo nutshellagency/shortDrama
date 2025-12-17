@@ -3,6 +3,7 @@
 export interface Series {
     id: string;
     title: string;
+    description?: string;
     language: string;
     genres: string[];
     defaultCoinCost: number;
