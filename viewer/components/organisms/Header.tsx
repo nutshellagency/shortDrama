@@ -9,7 +9,7 @@ export default function Header() {
     return (
         <header className="app-header">
             <div className="brand-text">
-                ReelDrama
+                ShortDrama
             </div>
 
             <div className="coin-badge">

@@ -318,7 +318,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const timer = getEl('ad-timer');
 
             show(overlay);
-            adVideo.src = '/content/RAW/MockAd.mp4';
+            // Dynamic ad URL from local MinIO
+            adVideo.src = 'http://localhost:9000/shortdrama-processed/ads/MockAd.mp4';
             adVideo.currentTime = 0;
 
             // disable main player controls if needed, but overlay covers it.

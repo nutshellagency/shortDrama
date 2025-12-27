@@ -20,8 +20,10 @@ const AD_CONFIG = {
     // Fallback: Mock ad from Supabase Storage
     // Use Supabase public URL if available, otherwise fallback to local
     fallbackAdUrl: process.env.NEXT_PUBLIC_SUPABASE_URL
-        ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/shortdrama-processed/ads/mockad.mp4`
-        : '/ads/mock-ad.mp4', // Local development fallback
+        ? (process.env.NEXT_PUBLIC_SUPABASE_URL.includes('/storage/v1/object/public')
+            ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/shortdrama-processed/ads/MockAd.mp4`
+            : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/shortdrama-processed/ads/MockAd.mp4`)
+        : '/ads/MockAd.mp4', // Local development fallback
 
     // Reward amount for watching an ad
     rewardAmount: 5,
@@ -56,72 +58,76 @@ export default function UnlockModal({
         setShowingAd(true);
         setAdError(null);
         setCanSkip(false);
-
-        const adVideo = adVideoRef.current;
-        if (!adVideo) {
-            setAdError('Video player not available');
-            setShowingAd(false);
-            return;
-        }
-
-        // Try to load AdSense first, fallback to local ad
-        let adUrl = AD_CONFIG.fallbackAdUrl;
-
-        if (AD_CONFIG.adsenseEnabled && AD_CONFIG.adsenseAdUnitId) {
-            // TODO: Implement actual AdSense video ad loading
-            // For now, we'll use the fallback
-            console.log('[Ad] AdSense configured but implementation pending, using fallback');
-        }
-
-        // fallbackAdUrl is now a fully qualified URL (Supabase public URL)
-        // No need to prepend API server URL
-        adVideo.src = adUrl;
-
-        try {
-            // Wait for metadata to load to get duration
-            await new Promise<void>((resolve, reject) => {
-                adVideo.onloadedmetadata = () => {
-                    setAdDuration(Math.ceil(adVideo.duration));
-                    setAdTimeLeft(Math.ceil(adVideo.duration));
-                    resolve();
-                };
-                adVideo.onerror = () => {
-                    reject(new Error('Failed to load ad video'));
-                };
-                adVideo.load();
-            });
-
-            // Start playback
-            await adVideo.play();
-
-            // Start countdown timer
-            timerRef.current = setInterval(() => {
-                if (adVideo) {
-                    const remaining = Math.ceil(adVideo.duration - adVideo.currentTime);
-                    setAdTimeLeft(remaining > 0 ? remaining : 0);
-
-                    // Allow skip after watching at least 5 seconds or 80% of ad
-                    const watchedPct = adVideo.currentTime / adVideo.duration;
-                    if (adVideo.currentTime >= 5 || watchedPct >= 0.8) {
-                        setCanSkip(true);
-                    }
-                }
-            }, 250);
-
-            // Handle ad completion
-            adVideo.onended = async () => {
-                if (timerRef.current) clearInterval(timerRef.current);
-                await completeAdUnlock();
-            };
-
-        } catch (error) {
-            console.error('[Ad] Playback failed:', error);
-            if (timerRef.current) clearInterval(timerRef.current);
-            setAdError('Ad failed to play. Please try again.');
-            setShowingAd(false);
-            // DO NOT grant unlock if ad fails - user must try again
-        }
+        // The actual video loading will now happen in a useEffect watcher below
     };
+
+    // New Watcher: Wait for showingAd to mount the video element, then play
+    useEffect(() => {
+        if (!showingAd) return;
+
+        const startPlayback = async () => {
+            const adVideo = adVideoRef.current;
+            if (!adVideo) {
+                console.error('[Ad] Video element ref not found after render');
+                setAdError('Video player mounting failed. Please try again.');
+                return;
+            }
+
+            // Fixed local path for dev
+            const adUrl = 'http://localhost:9000/shortdrama-processed/ads/MockAd.mp4';
+            console.log('[Ad] Attempting to play ad from:', adUrl);
+            adVideo.src = adUrl;
+
+            try {
+                // Wait for metadata to load to get duration
+                await new Promise<void>((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('Ad load timeout')), 10000);
+                    adVideo.onloadedmetadata = () => {
+                        clearTimeout(timeout);
+                        setAdDuration(Math.ceil(adVideo.duration));
+                        setAdTimeLeft(Math.ceil(adVideo.duration));
+                        resolve();
+                    };
+                    adVideo.onerror = () => {
+                        clearTimeout(timeout);
+                        reject(new Error('Failed to load ad video'));
+                    };
+                    adVideo.load();
+                });
+
+                // Start playback
+                await adVideo.play();
+
+                // Start countdown timer
+                timerRef.current = setInterval(() => {
+                    if (adVideo) {
+                        const remaining = Math.ceil(adVideo.duration - adVideo.currentTime);
+                        setAdTimeLeft(remaining > 0 ? remaining : 0);
+
+                        // Allow skip after watching at least 5 seconds or 80% of ad
+                        const watchedPct = adVideo.currentTime / adVideo.duration;
+                        if (adVideo.currentTime >= 5 || watchedPct >= 0.8) {
+                            setCanSkip(true);
+                        }
+                    }
+                }, 250);
+
+                // Handle ad completion
+                adVideo.onended = async () => {
+                    if (timerRef.current) clearInterval(timerRef.current);
+                    await completeAdUnlock();
+                };
+
+            } catch (error: any) {
+                console.error('[Ad] Playback failed:', error);
+                if (timerRef.current) clearInterval(timerRef.current);
+                setAdError(error.message || 'Ad failed to play. Please try again.');
+                // Don't auto-close, let user see error or try again
+            }
+        };
+
+        startPlayback();
+    }, [showingAd]);
 
     const handleSkipAd = async () => {
         if (!canSkip) return;

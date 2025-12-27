@@ -110,6 +110,32 @@ function ensureWorker(req: any, reply: any, done: any) {
 
 app.get("/health", async () => ({ ok: true }));
 
+// Debug endpoint: Test Supabase S3 connectivity
+app.get("/debug/storage-check", { preHandler: ensureAdmin }, async (req, reply) => {
+  try {
+    const s3 = createS3();
+    const { ListBucketsCommand } = await import("@aws-sdk/client-s3");
+    const buckets = await s3.send(new ListBucketsCommand({}));
+    return {
+      ok: true,
+      buckets: buckets.Buckets?.map(b => b.Name),
+      env: {
+        endpoint: env.S3_ENDPOINT,
+        region: env.S3_REGION,
+        bucketRaw: env.S3_BUCKET_RAW,
+        bucketProcessed: env.S3_BUCKET_PROCESSED
+      }
+    };
+  } catch (err: any) {
+    return reply.code(500).send({
+      ok: false,
+      error: err.message,
+      stack: err.stack,
+      hint: "Check S3_ACCESS_KEY and S3_SECRET_KEY in your .env"
+    });
+  }
+});
+
 // Debug endpoint (temporary): show episode data and generated URLs
 app.get("/debug/episodes", async () => {
   const episodes = await prisma.episode.findMany({
