@@ -3,9 +3,11 @@ import dotenv from "dotenv";
 import path from "path";
 
 // Load environment variables from .env file
-dotenv.config({ path: path.join(__dirname, "..", "..", ".env") }); // Look in project root
-dotenv.config({ path: path.join(__dirname, "..", ".env") }); // Look in server root
-dotenv.config(); // Also try current directory
+const rootEnv = path.join(process.cwd(), "..", ".env");
+const localEnv = path.join(process.cwd(), ".env");
+
+dotenv.config({ path: localEnv }); // Try current directory first
+dotenv.config({ path: rootEnv });  // Try parent directory
 
 const envSchema = z.object({
   API_PORT: z.coerce.number().default(3000),
