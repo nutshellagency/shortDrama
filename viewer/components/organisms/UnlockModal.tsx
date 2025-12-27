@@ -18,8 +18,8 @@ const AD_CONFIG = {
     adsenseAdUnitId: '', // Your AdSense video ad unit ID
 
     // Fallback: Mock ad from local public folder or Supabase
-    // We try the local /MockAd.mp4 first (same origin), then Supabase
-    fallbackAdUrl: './MockAd.mp4', // Use relative path for better compatibility
+    // Using absolute path /MockAd.mp4 to ensure it works from any page level (e.g. /player/[id])
+    fallbackAdUrl: '/MockAd.mp4', 
 
     // Reward amount for watching an ad
     rewardAmount: 5,

@@ -184,19 +184,27 @@ export function adminHtml() {
       async function doLogin() {
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
-        console.log('[Admin] Attempting login for:', email);
-        const res = await API('/admin/login', { 
-          method: 'POST', 
-          headers: { 'content-type': 'application/json' }, 
-          body: JSON.stringify({ email, password }) 
-        });
-        if (res.ok) { 
-          console.log('[Admin] Login success');
-          setToken(res.data.token); 
-          showWizard(); 
-        } else { 
-          console.error('[Admin] Login failed:', res.status, res.data);
-          document.getElementById('login-error').textContent = 'Invalid credentials (' + (res.data.error || res.status) + ')'; 
+        const errEl = document.getElementById('login-error');
+        errEl.textContent = '';
+
+        try {
+          const res = await fetch('/admin/login', { 
+            method: 'POST', 
+            headers: { 'content-type': 'application/json' }, 
+            body: JSON.stringify({ email, password }) 
+          });
+          
+          const data = await res.json().catch(() => ({}));
+          
+          if (res.ok && data.token) { 
+            setToken(data.token); 
+            showWizard(); 
+          } else { 
+            errEl.textContent = 'Login Failed: ' + (data.error || res.statusText || res.status);
+          }
+        } catch (err) {
+          errEl.textContent = 'Connection Error: ' + err.message;
+          alert('Could not connect to server. Is the API running?');
         }
       }
 
