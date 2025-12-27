@@ -230,11 +230,11 @@ export default function UnlockModal({
                         height: '100vh', 
                         display: 'block', 
                         objectFit: 'contain',
-                        backgroundColor: '#111',
-                        zIndex: 290
+                        backgroundColor: '#000',
+                        zIndex: 310 // Moved above the overlay (300)
                     }}
                 />
-                <div className="ad-ui">
+                <div className="ad-ui" style={{ zIndex: 320, position: 'relative' }}>
                     {adError && (
                         <div style={{
                             position: 'absolute',

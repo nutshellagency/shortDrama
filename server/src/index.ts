@@ -203,10 +203,11 @@ app.get("/debug/feed", async () => {
   return { items };
 });
 
+// Admin Panel
 app.get("/admin", async (_req, reply) => reply.type("text/html").send(adminHtml()));
 
 // --- Production Sync ---
-app.post("/admin/sync/push", { preHandler: ensureAdmin }, async (_req, reply) => {
+app.post("/admin/sync/push", { preHandler: ensureAdmin }, async (req, reply) => {
   try {
     const { execSync } = await import("child_process");
     const output = execSync("python ../scripts/push_to_live.py", { encoding: "utf8" });
@@ -216,7 +217,7 @@ app.post("/admin/sync/push", { preHandler: ensureAdmin }, async (_req, reply) =>
   }
 });
 
-app.post("/admin/sync/pull", { preHandler: ensureAdmin }, async (_req, reply) => {
+app.post("/admin/sync/pull", { preHandler: ensureAdmin }, async (req, reply) => {
   try {
     const { execSync } = await import("child_process");
     const output = execSync("python ../scripts/pull_from_live.py", { encoding: "utf8" });
@@ -226,20 +227,9 @@ app.post("/admin/sync/pull", { preHandler: ensureAdmin }, async (_req, reply) =>
   }
 });
 
-// Redirect root traffic to the Viewer
-app.get("/", async (req, reply) => {
-  const host = req.headers.host || "";
-  const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
-  const target = isLocal ? "http://localhost:3001" : "https://shortdrama-viewer.vercel.app";
-  return reply.redirect(target);
-});
-
-app.get("/app", async (req, reply) => {
-  const host = req.headers.host || "";
-  const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
-  const target = isLocal ? "http://localhost:3001" : "https://shortdrama-viewer.vercel.app";
-  return reply.redirect(target);
-});
+// Basic Root Routes (No Redirection)
+app.get("/", async (_req, reply) => reply.type("text/html").send(appHtml()));
+app.get("/app", async (_req, reply) => reply.type("text/html").send(appHtml()));
 
 // --- Auth (POC: guest mode) ---
 app.post("/auth/guest", async (_req, reply) => {
