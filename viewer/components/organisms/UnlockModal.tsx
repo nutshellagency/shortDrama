@@ -19,7 +19,7 @@ const AD_CONFIG = {
 
     // Fallback: Mock ad from local public folder or Supabase
     // We try the local /MockAd.mp4 first (same origin), then Supabase
-    fallbackAdUrl: '/MockAd.mp4', 
+    fallbackAdUrl: './MockAd.mp4', // Use relative path for better compatibility
 
     // Reward amount for watching an ad
     rewardAmount: 5,

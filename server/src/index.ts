@@ -53,6 +53,10 @@ import { pipeline } from "stream/promises";
 
 const env = getEnv();
 
+// Debug: confirm environment loading (masked)
+console.log(`[Server] Admin Email Loaded: ${env.ADMIN_EMAIL.substring(0, 3)}...`);
+console.log(`[Server] Database Host: ${env.DATABASE_URL.split('@')[1]?.split(':')[0] || 'unknown'}`);
+
 export const app = Fastify({ logger: true });
 
 declare module "@fastify/jwt" {
