@@ -199,9 +199,30 @@ app.get("/debug/feed", async () => {
   return { items };
 });
 
-app.get("/", async (_req, reply) => reply.redirect("/app"));
-app.get("/admin", async (_req, reply) => reply.type("text/html").send(adminHtml()));
-app.get("/app", async (_req, reply) => reply.type("text/html").send(appHtml()));
+// --- Production Sync ---
+app.post("/admin/sync/push", { preHandler: ensureAdmin }, async (_req, reply) => {
+  try {
+    // Run the push script using python
+    const { execSync } = await import("child_process");
+    const output = execSync("python ../scripts/push_to_live.py", { encoding: "utf8" });
+    return { ok: true, output };
+  } catch (err: any) {
+    return reply.code(500).send({ ok: false, error: err.message, output: err.stdout });
+  }
+});
+
+app.post("/admin/sync/pull", { preHandler: ensureAdmin }, async (_req, reply) => {
+  try {
+    const { execSync } = await import("child_process");
+    const output = execSync("python ../scripts/pull_from_live.py", { encoding: "utf8" });
+    return { ok: true, output };
+  } catch (err: any) {
+    return reply.code(500).send({ ok: false, error: err.message, output: err.stdout });
+  }
+});
+
+app.get("/", async (_req, reply) => reply.redirect("https://shortdrama-viewer.vercel.app"));
+app.get("/app", async (_req, reply) => reply.redirect("https://shortdrama-viewer.vercel.app"));
 
 // --- Auth (POC: guest mode) ---
 app.post("/auth/guest", async (_req, reply) => {

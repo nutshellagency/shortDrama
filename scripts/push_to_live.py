@@ -165,34 +165,38 @@ def push_storage():
         print(f"   ✗ Failed to list remote objects: {e}")
         return False
     
-    # Find new objects (in local but not in remote)
-    new_keys = set(local_objects.keys()) - set(remote_objects.keys())
+    # Find objects to delete (in remote but not in local)
+    delete_keys = set(remote_objects.keys()) - set(local_objects.keys())
     
-    if not new_keys:
+    if new_keys:
+        print(f"   Found {len(new_keys)} new files to upload")
+        for i, key in enumerate(sorted(new_keys), 1):
+            size_mb = local_objects[key]["Size"] / 1024 / 1024
+            print(f"   [{i}/{len(new_keys)}] Uploading {key} ({size_mb:.2f} MB)...", end=" ", flush=True)
+            try:
+                response = local_s3.get_object(Bucket=bucket, Key=key)
+                body = response["Body"].read()
+                supabase_s3.put_object(
+                    Bucket=bucket,
+                    Key=key,
+                    Body=body,
+                    ContentType=response.get("ContentType", "application/octet-stream")
+                )
+                print("✓")
+            except Exception as e:
+                print(f"✗ {e}")
+    else:
         print("   No new files to upload")
-        return True
-    
-    print(f"   Found {len(new_keys)} new files to upload")
-    
-    for i, key in enumerate(sorted(new_keys), 1):
-        size_mb = local_objects[key]["Size"] / 1024 / 1024
-        print(f"   [{i}/{len(new_keys)}] {key} ({size_mb:.2f} MB)...", end=" ", flush=True)
-        
-        try:
-            # Download from local
-            response = local_s3.get_object(Bucket=bucket, Key=key)
-            body = response["Body"].read()
-            
-            # Upload to Supabase
-            supabase_s3.put_object(
-                Bucket=bucket,
-                Key=key,
-                Body=body,
-                ContentType=response.get("ContentType", "application/octet-stream")
-            )
-            print("✓")
-        except Exception as e:
-            print(f"✗ {e}")
+
+    if delete_keys:
+        print(f"\n   Found {len(delete_keys)} old files to delete from Live")
+        for i, key in enumerate(sorted(delete_keys), 1):
+            print(f"   [{i}/{len(delete_keys)}] Deleting {key}...", end=" ", flush=True)
+            try:
+                supabase_s3.delete_object(Bucket=bucket, Key=key)
+                print("✓")
+            except Exception as e:
+                print(f"✗ {e}")
     
     return True
 

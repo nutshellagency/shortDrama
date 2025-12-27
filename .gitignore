@@ -35,3 +35,6 @@ supabase_dump.sql
 local_dump.sql
 minio.log
 minio_err.log
+
+# Production Assets
+!viewer/public/MockAd.mp4

@@ -117,10 +117,20 @@ export function adminHtml() {
             <div class="progress-text" id="progress-pct">0%</div>
           </div>
           <div class="status-text" id="status-text">Initializing...</div>
-          <button class="btn btn-secondary" onclick="window.open('/app','_blank')">Open Viewer App</button>
+          <button class="btn btn-secondary" onclick="window.open('http://localhost:3001','_blank')">Open Viewer App</button>
           <div id="episodes-container" class="hidden">
             <div class="episodes-list" id="episodes-list"></div>
           </div>
+        </div>
+
+        <!-- Sync Dashboard -->
+        <div class="card">
+          <h2>🌍 Live Synchronization</h2>
+          <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+            <button class="btn btn-primary" onclick="syncPush()" id="btn-sync-push">🚀 Push Local to Live</button>
+            <button class="btn btn-secondary" onclick="syncPull()" id="btn-sync-pull">📥 Pull Live to Local</button>
+          </div>
+          <div id="sync-status" class="status-text" style="text-align: left; font-family: monospace; font-size: 0.75rem; background: #000; padding: 10px; border-radius: 8px; max-height: 150px; overflow-y: auto; display: none;"></div>
         </div>
 
         <!-- Series Management Table -->
@@ -356,7 +366,7 @@ export function adminHtml() {
       }
 
       async function deleteSeries(id, title) {
-        if (!confirm('Delete "' + title + '" and all its episodes? This cannot be undone.')) return;
+        if (!confirm('Delete "' + title + '" and all its episodes locally? This cannot be undone.\n\nNOTE: To delete from LIVE, run "Push Local to Live" after this deletion.')) return;
         const res = await API('/admin/series/' + id, {
           method: 'DELETE',
           headers: { 'authorization': 'Bearer ' + getToken() }
@@ -365,6 +375,53 @@ export function adminHtml() {
           loadSeriesList();
         } else {
           alert('Delete failed: ' + (res.data.error || res.status));
+        }
+      }
+
+      async function syncPush() {
+        const btn = document.getElementById('btn-sync-push');
+        const status = document.getElementById('sync-status');
+        btn.disabled = true;
+        btn.textContent = 'Pushing...';
+        status.style.display = 'block';
+        status.textContent = 'Starting push to production...';
+
+        const res = await API('/admin/sync/push', { 
+            method: 'POST', 
+            headers: { 'authorization': 'Bearer ' + getToken() } 
+        });
+        
+        btn.disabled = false;
+        btn.textContent = '🚀 Push Local to Live';
+        
+        if (res.ok) {
+            status.innerHTML = '<span style="color:var(--green)">✓ Sync Complete!</span><br><br>' + (res.data.output || '').replace(/\n/g, '<br>');
+        } else {
+            status.innerHTML = '<span style="color:#f85149">✗ Sync Failed</span><br><br>' + (res.data.error || '') + '<br>' + (res.data.output || '').replace(/\n/g, '<br>');
+        }
+      }
+
+      async function syncPull() {
+        const btn = document.getElementById('btn-sync-pull');
+        const status = document.getElementById('sync-status');
+        btn.disabled = true;
+        btn.textContent = 'Pulling...';
+        status.style.display = 'block';
+        status.textContent = 'Starting pull from production...';
+
+        const res = await API('/admin/sync/pull', { 
+            method: 'POST', 
+            headers: { 'authorization': 'Bearer ' + getToken() } 
+        });
+        
+        btn.disabled = false;
+        btn.textContent = '📥 Pull Live to Local';
+        
+        if (res.ok) {
+            status.innerHTML = '<span style="color:var(--green)">✓ Pull Complete!</span><br><br>' + (res.data.output || '').replace(/\n/g, '<br>');
+            loadSeriesList();
+        } else {
+            status.innerHTML = '<span style="color:#f85149">✗ Pull Failed</span><br><br>' + (res.data.error || '') + '<br>' + (res.data.output || '').replace(/\n/g, '<br>');
         }
       }
     </script>
