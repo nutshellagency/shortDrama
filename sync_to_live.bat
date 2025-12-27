@@ -17,8 +17,8 @@ if %ERRORLEVEL% NEQ 0 (
 :: 2. Push Database Schema
 echo [2/3] Updating Supabase Database Schema...
 cd server
-:: Using the Supabase URL from your env
-set DATABASE_URL="postgresql://postgres.sqnqbdyqqiizyktfkwwq:bbBySjRz5ykA2vP2@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres"
+:: Removed quotes from URL to fix Prisma validation
+set DATABASE_URL=postgresql://postgres.sqnqbdyqqiizyktfkwwq:bbBySjRz5ykA2vP2@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres
 call npx prisma db push --accept-data-loss
 cd ..
 

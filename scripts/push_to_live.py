@@ -67,6 +67,7 @@ def push_database():
         "-U", local.username,
         "-d", local.path.lstrip("/"),
         "--data-only",
+        "--inserts",  # Added to support on-conflict
         "--no-owner",
         "--no-acl",
         "--on-conflict-do-nothing",  # Merge logic
