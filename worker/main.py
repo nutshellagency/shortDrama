@@ -198,6 +198,22 @@ def get_smart_crop_filter(input_path: str, job_id: str, report_progress: bool = 
         return default_filter
 
 
+def get_ffmpeg_encoder():
+    """
+    Check if NVIDIA GPU acceleration (NVENC) is available.
+    """
+    try:
+        # Quick check for nvenc support
+        result = subprocess.run([FFMPEG_PATH, "-encoders"], capture_output=True, text=True)
+        if "h264_nvenc" in result.stdout:
+            print("[Worker] NVIDIA GPU acceleration (NVENC) detected! Using GPU for encoding.", flush=True)
+            return "h264_nvenc"
+    except:
+        pass
+    print("[Worker] GPU acceleration not detected. Using CPU (libx264) for encoding.", flush=True)
+    return "libx264"
+
+
 def process_video(
     job_id: str,
     input_path: str,
@@ -213,6 +229,7 @@ def process_video(
     out_json = os.path.join(out_dir, "meta.json")
 
     duration_sec_in = duration_sec or ffprobe_duration_sec(input_path) or 1
+    encoder = get_ffmpeg_encoder()
 
     # For segments with start_sec, we need to extract the segment first before analyzing
     # This ensures smart crop analyzes the actual content being cropped
@@ -236,29 +253,34 @@ def process_video(
     # Get smart crop filter (analyzes faces in video)
     video_filter = get_smart_crop_filter(segment_input, job_id, report_progress)
 
-    # Encode with progress: ffmpeg prints out_time_ms to stdout when -progress pipe:1 is used.
-    cmd = ["ffmpeg", "-y", "-i", input_path]
+    # Encode with progress
+    # Hardware acceleration flags added
+    cmd = ["ffmpeg", "-y"]
+    if encoder == "h264_nvenc":
+        cmd += ["-hwaccel", "auto"] # Auto-detect hardware decoder
+    
+    cmd += ["-i", input_path]
+    
     if start_sec is not None and start_sec > 0:
         cmd += ["-ss", str(int(start_sec))]
     if duration_sec is not None and duration_sec > 0:
         cmd += ["-t", str(int(duration_sec))]
+    
     cmd += [
-        "-vf",
-        video_filter,
-        "-c:v",
-        "libx264",
-        "-preset",
-        "veryfast",
-        "-crf",
-        "23",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "128k",
-        "-movflags",
-        "+faststart",
-        "-progress",
-        "pipe:1",
+        "-vf", video_filter,
+        "-c:v", encoder,
+    ]
+
+    if encoder == "h264_nvenc":
+        cmd += ["-preset", "p4", "-tune", "hq"] # High quality GPU presets
+    else:
+        cmd += ["-preset", "veryfast", "-crf", "23"]
+
+    cmd += [
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-movflags", "+faststart",
+        "-progress", "pipe:1",
         "-nostats",
         out_mp4,
     ]
