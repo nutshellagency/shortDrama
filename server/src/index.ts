@@ -199,6 +199,8 @@ app.get("/debug/feed", async () => {
   return { items };
 });
 
+app.get("/admin", async (_req, reply) => reply.type("text/html").send(adminHtml()));
+
 // --- Production Sync ---
 app.post("/admin/sync/push", { preHandler: ensureAdmin }, async (_req, reply) => {
   try {
@@ -221,6 +223,7 @@ app.post("/admin/sync/pull", { preHandler: ensureAdmin }, async (_req, reply) =>
   }
 });
 
+// Redirect old app paths to the modern Viewer
 app.get("/", async (_req, reply) => reply.redirect("https://shortdrama-viewer.vercel.app"));
 app.get("/app", async (_req, reply) => reply.redirect("https://shortdrama-viewer.vercel.app"));
 
