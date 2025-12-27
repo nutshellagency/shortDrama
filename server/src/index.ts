@@ -226,9 +226,18 @@ app.post("/admin/sync/pull", { preHandler: ensureAdmin }, async (_req, reply) =>
   }
 });
 
-// Redirect non-admin root traffic to the modern Viewer
-app.get("/", async (_req, reply) => reply.redirect("https://shortdrama-viewer.vercel.app"));
-app.get("/app", async (_req, reply) => reply.redirect("https://shortdrama-viewer.vercel.app"));
+// Redirect root traffic to the Viewer
+app.get("/", async (req, reply) => {
+  const isLocal = req.headers.host?.includes('localhost') || req.headers.host?.includes('127.0.0.1');
+  const target = isLocal ? "http://localhost:3001" : "https://shortdrama-viewer.vercel.app";
+  return reply.redirect(target);
+});
+
+app.get("/app", async (req, reply) => {
+  const isLocal = req.headers.host?.includes('localhost') || req.headers.host?.includes('127.0.0.1');
+  const target = isLocal ? "http://localhost:3001" : "https://shortdrama-viewer.vercel.app";
+  return reply.redirect(target);
+});
 
 // --- Auth (POC: guest mode) ---
 app.post("/auth/guest", async (_req, reply) => {

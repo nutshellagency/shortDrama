@@ -184,9 +184,20 @@ export function adminHtml() {
       async function doLogin() {
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
-        const res = await API('/admin/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }) });
-        if (res.ok) { setToken(res.data.token); showWizard(); }
-        else { document.getElementById('login-error').textContent = 'Invalid credentials'; }
+        console.log('[Admin] Attempting login for:', email);
+        const res = await API('/admin/login', { 
+          method: 'POST', 
+          headers: { 'content-type': 'application/json' }, 
+          body: JSON.stringify({ email, password }) 
+        });
+        if (res.ok) { 
+          console.log('[Admin] Login success');
+          setToken(res.data.token); 
+          showWizard(); 
+        } else { 
+          console.error('[Admin] Login failed:', res.status, res.data);
+          document.getElementById('login-error').textContent = 'Invalid credentials (' + (res.data.error || res.status) + ')'; 
+        }
       }
 
       function setSource(mode) {
