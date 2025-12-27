@@ -11,7 +11,7 @@ interface UnlockModalProps {
     onCancel: () => void;
 }
 
-// Ad configuration
+// Ad configuration - v2.1 for cache bust
 const AD_CONFIG = {
     // Primary: Google AdSense (placeholder - requires actual implementation)
     adsenseEnabled: false, // Set to true when AdSense is configured

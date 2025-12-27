@@ -204,7 +204,6 @@ app.get("/admin", async (_req, reply) => reply.type("text/html").send(adminHtml(
 // --- Production Sync ---
 app.post("/admin/sync/push", { preHandler: ensureAdmin }, async (_req, reply) => {
   try {
-    // Run the push script using python
     const { execSync } = await import("child_process");
     const output = execSync("python ../scripts/push_to_live.py", { encoding: "utf8" });
     return { ok: true, output };
@@ -223,7 +222,7 @@ app.post("/admin/sync/pull", { preHandler: ensureAdmin }, async (_req, reply) =>
   }
 });
 
-// Redirect old app paths to the modern Viewer
+// Redirect non-admin root traffic to the modern Viewer
 app.get("/", async (_req, reply) => reply.redirect("https://shortdrama-viewer.vercel.app"));
 app.get("/app", async (_req, reply) => reply.redirect("https://shortdrama-viewer.vercel.app"));
 

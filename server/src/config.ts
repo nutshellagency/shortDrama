@@ -3,7 +3,8 @@ import dotenv from "dotenv";
 import path from "path";
 
 // Load environment variables from .env file
-dotenv.config({ path: path.join(__dirname, "..", ".env") });
+dotenv.config({ path: path.join(__dirname, "..", "..", ".env") }); // Look in project root
+dotenv.config({ path: path.join(__dirname, "..", ".env") }); // Look in server root
 dotenv.config(); // Also try current directory
 
 const envSchema = z.object({
