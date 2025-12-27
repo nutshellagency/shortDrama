@@ -73,8 +73,8 @@ export default function UnlockModal({
                 return;
             }
 
-            // Fixed local path for dev
-            const adUrl = 'http://localhost:9000/shortdrama-processed/ads/MockAd.mp4';
+            // Use the configured fallback URL (Supabase or Local)
+            const adUrl = AD_CONFIG.fallbackAdUrl;
             console.log('[Ad] Attempting to play ad from:', adUrl);
             adVideo.src = adUrl;
 
