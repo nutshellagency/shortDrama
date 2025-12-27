@@ -228,13 +228,15 @@ app.post("/admin/sync/pull", { preHandler: ensureAdmin }, async (_req, reply) =>
 
 // Redirect root traffic to the Viewer
 app.get("/", async (req, reply) => {
-  const isLocal = req.headers.host?.includes('localhost') || req.headers.host?.includes('127.0.0.1');
+  const host = req.headers.host || "";
+  const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
   const target = isLocal ? "http://localhost:3001" : "https://shortdrama-viewer.vercel.app";
   return reply.redirect(target);
 });
 
 app.get("/app", async (req, reply) => {
-  const isLocal = req.headers.host?.includes('localhost') || req.headers.host?.includes('127.0.0.1');
+  const host = req.headers.host || "";
+  const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
   const target = isLocal ? "http://localhost:3001" : "https://shortdrama-viewer.vercel.app";
   return reply.redirect(target);
 });
@@ -255,15 +257,18 @@ app.post("/auth/guest", async (_req, reply) => {
 
 // --- Admin auth (POC: env-based) ---
 app.post("/admin/login", async (req, reply) => {
-  const body = z
-    .object({ email: z.string().min(1), password: z.string().min(1) })
-    .parse(req.body ?? {});
+  const body: any = req.body ?? {};
+  console.log(`[Admin] Login attempt for: ${body.email}`);
+  
   if (body.email !== env.ADMIN_EMAIL || body.password !== env.ADMIN_PASSWORD) {
+    console.warn(`[Admin] Login failed for: ${body.email}. Expected: ${env.ADMIN_EMAIL}`);
     return reply.code(401).send({ error: "invalid_credentials" });
   }
+  
   // With @fastify/jwt + namespace, the sign method is decorated on reply/request.
   // @ts-expect-error namespace typing
   const token = await reply.adminJwtSign({ role: "admin" });
+  console.log(`[Admin] Login success for: ${body.email}`);
   return reply.send({ token });
 });
 

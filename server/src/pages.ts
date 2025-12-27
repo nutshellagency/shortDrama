@@ -182,13 +182,22 @@ export function adminHtml() {
       }
 
       async function doLogin() {
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
+        console.log('Login function started');
+        const emailEl = document.getElementById('email');
+        const passEl = document.getElementById('password');
+        const btnEl = document.querySelector('.login-section .btn');
         const errEl = document.getElementById('login-error');
+        
+        const email = emailEl.value;
+        const password = passEl.value;
+        
         errEl.textContent = '';
+        btnEl.disabled = true;
+        btnEl.textContent = 'Authenticating...';
 
         try {
-          const res = await fetch('/admin/login', { 
+          const loginUrl = window.location.origin + '/admin/login';
+          const res = await fetch(loginUrl, { 
             method: 'POST', 
             headers: { 'content-type': 'application/json' }, 
             body: JSON.stringify({ email, password }) 
@@ -197,14 +206,18 @@ export function adminHtml() {
           const data = await res.json().catch(() => ({}));
           
           if (res.ok && data.token) { 
-            setToken(data.token); 
-            showWizard(); 
+            localStorage.setItem('adminToken', data.token); 
+            window.location.reload(); // Refresh to show wizard
           } else { 
-            errEl.textContent = 'Login Failed: ' + (data.error || res.statusText || res.status);
+            btnEl.disabled = false;
+            btnEl.textContent = 'Login';
+            errEl.textContent = 'Error: ' + (data.error || 'Invalid Credentials (' + res.status + ')');
           }
         } catch (err) {
+          btnEl.disabled = false;
+          btnEl.textContent = 'Login';
           errEl.textContent = 'Connection Error: ' + err.message;
-          alert('Could not connect to server. Is the API running?');
+          alert('Connection Error: ' + err.message);
         }
       }
 

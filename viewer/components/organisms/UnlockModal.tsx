@@ -219,8 +219,20 @@ export default function UnlockModal({
                     ref={adVideoRef}
                     className="ad-video"
                     playsInline
+                    autoPlay
                     muted={false}
                     preload="metadata"
+                    style={{ 
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        width: '100vw', 
+                        height: '100vh', 
+                        display: 'block', 
+                        objectFit: 'contain',
+                        backgroundColor: '#111',
+                        zIndex: 290
+                    }}
                 />
                 <div className="ad-ui">
                     {adError && (
