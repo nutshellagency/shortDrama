@@ -17,13 +17,9 @@ const AD_CONFIG = {
     adsenseEnabled: false, // Set to true when AdSense is configured
     adsenseAdUnitId: '', // Your AdSense video ad unit ID
 
-    // Fallback: Mock ad from Supabase Storage
-    // Use Supabase public URL if available, otherwise fallback to local
-    fallbackAdUrl: process.env.NEXT_PUBLIC_SUPABASE_URL
-        ? (process.env.NEXT_PUBLIC_SUPABASE_URL.includes('/storage/v1/object/public')
-            ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/shortdrama-processed/ads/MockAd.mp4`
-            : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/shortdrama-processed/ads/MockAd.mp4`)
-        : '/ads/MockAd.mp4', // Local development fallback
+    // Fallback: Mock ad from local public folder or Supabase
+    // We try the local /MockAd.mp4 first (same origin), then Supabase
+    fallbackAdUrl: '/MockAd.mp4', 
 
     // Reward amount for watching an ad
     rewardAmount: 5,
@@ -42,6 +38,8 @@ export default function UnlockModal({
     const [isProcessing, setIsProcessing] = useState(false);
     const [adError, setAdError] = useState<string | null>(null);
     const [canSkip, setCanSkip] = useState(false);
+    const [isMuted, setIsMuted] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const adVideoRef = useRef<HTMLVideoElement>(null);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -53,6 +51,14 @@ export default function UnlockModal({
             }
         };
     }, []);
+
+    const toggleMute = () => {
+        const adVideo = adVideoRef.current;
+        if (adVideo) {
+            adVideo.muted = !adVideo.muted;
+            setIsMuted(adVideo.muted);
+        }
+    };
 
     const handleWatchAd = async () => {
         setShowingAd(true);
@@ -66,37 +72,61 @@ export default function UnlockModal({
         if (!showingAd) return;
 
         const startPlayback = async () => {
+            // Give the browser a tiny moment to mount the video element
+            await new Promise(resolve => setTimeout(resolve, 150));
+
             const adVideo = adVideoRef.current;
             if (!adVideo) {
                 console.error('[Ad] Video element ref not found after render');
-                setAdError('Video player mounting failed. Please try again.');
+                setAdError('Video player initialization failed. Please try again.');
                 return;
             }
+
+            setIsLoading(true);
+            setAdError(null);
 
             // Use the configured fallback URL (Supabase or Local)
             const adUrl = AD_CONFIG.fallbackAdUrl;
             console.log('[Ad] Attempting to play ad from:', adUrl);
+            
+            // Set source and reset state
             adVideo.src = adUrl;
+            adVideo.load();
 
             try {
-                // Wait for metadata to load to get duration
+                // Wait for the video to be ready to play
                 await new Promise<void>((resolve, reject) => {
-                    const timeout = setTimeout(() => reject(new Error('Ad load timeout')), 10000);
-                    adVideo.onloadedmetadata = () => {
+                    const timeout = setTimeout(() => reject(new Error('Ad load timeout')), 15000);
+                    
+                    const onReady = () => {
                         clearTimeout(timeout);
+                        setIsLoading(false);
                         setAdDuration(Math.ceil(adVideo.duration));
                         setAdTimeLeft(Math.ceil(adVideo.duration));
                         resolve();
                     };
+
+                    adVideo.oncanplay = onReady;
+                    adVideo.onloadedmetadata = onReady;
+                    
                     adVideo.onerror = () => {
                         clearTimeout(timeout);
-                        reject(new Error('Failed to load ad video'));
+                        setIsLoading(false);
+                        reject(new Error('Failed to load ad video source. Check your connection or storage.'));
                     };
-                    adVideo.load();
                 });
 
-                // Start playback
-                await adVideo.play();
+                // Start playback - try unmuted first, then muted if blocked
+                try {
+                    adVideo.muted = false;
+                    setIsMuted(false);
+                    await adVideo.play();
+                } catch (playError) {
+                    console.warn('[Ad] Unmuted playback blocked, trying muted...');
+                    adVideo.muted = true;
+                    setIsMuted(true);
+                    await adVideo.play();
+                }
 
                 // Start countdown timer
                 timerRef.current = setInterval(() => {
@@ -193,6 +223,51 @@ export default function UnlockModal({
                     preload="metadata"
                 />
                 <div className="ad-ui">
+                    {adError && (
+                        <div style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            color: '#ff4444',
+                            textAlign: 'center',
+                            zIndex: 30,
+                            background: 'rgba(0,0,0,0.8)',
+                            padding: '20px',
+                            borderRadius: '10px',
+                            width: '80%'
+                        }}>
+                            <p style={{ marginBottom: '15px' }}>{adError}</p>
+                            <button 
+                                className="btn btn-primary btn-sm" 
+                                onClick={handleCancelAd}
+                                style={{ width: 'auto', padding: '8px 20px' }}
+                            >
+                                Close
+                            </button>
+                        </div>
+                    )}
+                    {isLoading && !adError && (
+                        <div style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            color: '#fff',
+                            textAlign: 'center',
+                            zIndex: 20
+                        }}>
+                            <div className="animate-spin" style={{
+                                width: '40px',
+                                height: '40px',
+                                border: '4px solid rgba(255,255,255,0.3)',
+                                borderTop: '4px solid #fff',
+                                borderRadius: '50%',
+                                margin: '0 auto 10px'
+                            }}></div>
+                            <p>Loading Ad...</p>
+                        </div>
+                    )}
                     <div className="ad-header">
                         <div className="ad-label">Ad · Watch to earn {AD_CONFIG.rewardAmount} coins</div>
                         {canSkip ? (
@@ -215,6 +290,25 @@ export default function UnlockModal({
                         disabled={isProcessing}
                     >
                         ✕
+                    </button>
+                    <button 
+                        className="ad-mute-btn" 
+                        onClick={toggleMute}
+                        style={{
+                            position: 'absolute',
+                            bottom: '20px',
+                            right: '20px',
+                            background: 'rgba(0,0,0,0.6)',
+                            border: '1px solid #fff',
+                            color: '#fff',
+                            padding: '8px 12px',
+                            borderRadius: '20px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            zIndex: 10
+                        }}
+                    >
+                        {isMuted ? '🔇 Unmute' : '🔊 Mute'}
                     </button>
                 </div>
                 {isProcessing && (
