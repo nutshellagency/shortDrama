@@ -31,7 +31,7 @@ SUPABASE_S3_SECRET_KEY = "9f6fc497d4023479a32b03958a6f82157ee837a2a16ec0f67378cd
 SUPABASE_S3_REGION = "ap-southeast-2"
 
 # Local credentials  
-LOCAL_DB_URL = "postgresql://shortdrama:shortdrama@localhost:5433/shortdrama"
+LOCAL_DB_URL = "postgresql://shortdrama:shortdrama@localhost:5432/shortdrama"
 LOCAL_S3_ENDPOINT = "http://127.0.0.1:9000"
 LOCAL_S3_ACCESS_KEY = "minioadmin"
 LOCAL_S3_SECRET_KEY = "minioadmin"
